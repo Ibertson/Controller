@@ -2,7 +2,7 @@
 
 import { buildTransactions } from "../transactions";
 import type { Snapshot, Transaction } from "../types";
-import type { Repo } from "./repo";
+import type { Repo, SignInResult } from "./repo";
 import { emptySnapshot } from "./seed";
 
 const KEY = "sobra:v1";
@@ -12,6 +12,7 @@ interface Stored { session: { name: string } | null; data: Snapshot | null; keys
 
 /** Guarda tudo no navegador. Serve para usar já, sem servidor; dados ficam só neste aparelho. */
 export class LocalRepo implements Repo {
+  readonly mode = "local" as const;
   private state: Stored = { session: null, data: null, keys: [] };
   private listeners = new Set<() => void>();
   private loaded = false;
@@ -45,9 +46,10 @@ export class LocalRepo implements Repo {
   snapshot() { this.load(); return this.state.data; }
   subscribe(l: () => void) { this.listeners.add(l); return () => { this.listeners.delete(l); }; }
 
-  async signIn(name: string) {
+  async signIn(name: string): Promise<SignInResult> {
     this.load();
     this.commit({ ...this.state, session: { name: name.trim() }, data: this.state.data ?? emptySnapshot(newId) });
+    return "signed_in";
   }
   async signOut() { this.commit({ ...this.state, session: null }); }
 

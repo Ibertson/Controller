@@ -12,9 +12,18 @@ npm test           # regras de dinheiro, fatura, parcelas e resumos
 npm run build
 ```
 
-Por enquanto os dados ficam no navegador (`src/lib/data/local.ts`). A troca para o Supabase
-(login por email e banco Postgres) é uma nova implementação da mesma interface `Repo`
-(`src/lib/data/repo.ts`), sem mudar as telas. O esquema do banco está em `supabase/migrations/`.
+## Dados
+
+Sem configuração, os dados ficam só no navegador (`src/lib/data/local.ts`) e você entra pelo nome.
+Com o Supabase, entra por um link no email e os dados ficam na sua conta (`src/lib/data/supabase.ts`):
+
+1. No Supabase, rode `supabase/migrations/20261019000000_fase1.sql` no SQL Editor.
+2. Em Authentication → URL Configuration, coloque o endereço do app em Site URL e adicione
+   `http://localhost:3000/**` e o endereço da Vercel em Redirect URLs.
+3. Copie `.env.example` para `.env.local` (ou cadastre as duas variáveis na Vercel) com a URL e a
+   chave pública (`sb_publishable_...`).
+
+As duas versões seguem a mesma interface `Repo` (`src/lib/data/repo.ts`), então as telas não mudam.
 
 ## Onde está cada coisa
 

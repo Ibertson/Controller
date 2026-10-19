@@ -4,10 +4,15 @@ import type { Account, Card, Category, NewTransactionInput, Person, Snapshot, Tr
  * Camada de dados. A Fase 1 começa com LocalRepo (navegador) e troca por SupabaseRepo
  * com as mesmas assinaturas, sem mexer nas telas.
  */
+/** "signed_in": já entrou; "check_email": mandamos um link de acesso para o email. */
+export type SignInResult = "signed_in" | "check_email";
+
 export interface Repo {
-  /** Usuário atual; null = precisa entrar. */
-  session(): { name: string } | null;
-  signIn(name: string): Promise<void>;
+  /** "local": dados só neste navegador, entra pelo nome. "supabase": entra pelo email. */
+  readonly mode: "local" | "supabase";
+  /** Usuário atual; null = precisa entrar; undefined = ainda carregando. */
+  session(): { name: string } | null | undefined;
+  signIn(nameOrEmail: string): Promise<SignInResult>;
   signOut(): Promise<void>;
 
   snapshot(): Snapshot | null;
