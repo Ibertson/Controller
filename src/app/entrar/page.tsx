@@ -1,10 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 import { MailCheck } from "lucide-react";
 import { repo, useSession } from "@/lib/data";
 import { Button, Field, Input } from "@/components/ui";
+
+const noSubscribe = () => () => {};
 
 export default function Entrar() {
   const router = useRouter();
@@ -14,6 +16,9 @@ export default function Entrar() {
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
   const [sentTo, setSentTo] = useState("");
+  // Publicado sem as variáveis do Supabase: avisa em vez de cair calado no modo local.
+  const missingConfig = useSyncExternalStore(noSubscribe,
+    () => !email && !/^(localhost|127\.|192\.168\.)/.test(window.location.hostname), () => false);
 
   // Volta do link do email já autenticado: segue para o painel.
   useEffect(() => { if (session) router.replace("/"); }, [session, router]);
@@ -29,9 +34,10 @@ export default function Entrar() {
       if (r === "check_email") setSentTo(v);
       else router.replace("/");
     } catch (err) {
-      setError(err instanceof Error && /rate/i.test(err.message)
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(/rate|seconds/i.test(msg)
         ? "Muitos pedidos seguidos. Espere alguns minutos e tente de novo."
-        : "Não deu para entrar agora. Tente de novo.");
+        : `Não deu para entrar agora (${msg}). Tente de novo.`);
     } finally {
       setSending(false);
     }
@@ -42,11 +48,17 @@ export default function Entrar() {
       <div className="w-full max-w-sm rounded-lg border border-border bg-bg p-6 shadow-card">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/icon.svg" alt="" className="size-12" />
+        {missingConfig && (
+          <p role="alert" className="mt-4 rounded-md bg-warning-soft p-3 text-sm text-warning">
+            Este endereço está sem as variáveis do Supabase, então os dados ficam só neste aparelho.
+            Na Vercel, adicione NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY e faça Redeploy.
+          </p>
+        )}
         {sentTo ? (
           <div role="status" className="mt-4">
             <MailCheck aria-hidden className="size-8 text-accent" />
             <h1 className="mt-2 text-xl font-bold">Confira seu email</h1>
-            <p className="mt-1 text-text-muted">Mandamos um link de acesso para <strong className="text-text">{sentTo}</strong>. Abra neste aparelho para entrar.</p>
+            <p className="mt-1 text-text-muted">Mandamos um link de acesso para <strong className="text-text">{sentTo}</strong>. Clique no link para entrar.</p>
             <button className="mt-4 text-sm font-semibold text-accent" onClick={() => setSentTo("")}>Usar outro email</button>
           </div>
         ) : (

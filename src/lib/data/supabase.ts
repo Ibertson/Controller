@@ -75,9 +75,12 @@ export class SupabaseRepo implements Repo {
   private listeners = new Set<() => void>();
   private keys = new Set<string>();
   private started = false;
+  private failure: string | null = null;
 
   constructor(url: string, key: string) {
-    this.db = createClient(url, key, { auth: { flowType: "pkce", persistSession: true, detectSessionInUrl: true } });
+    // "implicit": o link do email funciona mesmo se abrir em outro navegador (ex.: app do Gmail no celular);
+    // com "pkce" o link só vale no mesmo navegador que pediu.
+    this.db = createClient(url, key, { auth: { flowType: "implicit", persistSession: true, detectSessionInUrl: true } });
   }
 
   private emit() { this.listeners.forEach((l) => l()); }
@@ -87,13 +90,26 @@ export class SupabaseRepo implements Repo {
     this.started = true;
     this.db.auth.onAuthStateChange((_event, session) => {
       const u = session?.user;
-      if (!u) { this.user = null; this.data = null; this.emit(); return; }
+      if (!u) { this.user = null; this.data = null; this.failure = null; this.emit(); return; }
       if (this.user?.id === u.id && this.data) return;
       this.user = { id: u.id, name: (u.user_metadata?.name as string) || u.email?.split("@")[0] || "você" };
       // fora do callback: o supabase-js não deve ser chamado de dentro dele
-      setTimeout(() => this.load().catch((e) => console.error("Falha ao carregar dados", e)), 0);
+      setTimeout(() => this.reload(), 0);
     });
   }
+
+  private reload() {
+    this.failure = null;
+    this.emit();
+    this.load().catch((e) => {
+      console.error("Falha ao carregar dados", e);
+      this.failure = e instanceof Error ? e.message : String(e);
+      this.emit();
+    });
+  }
+
+  loadError() { return this.failure; }
+  retry() { if (this.user) this.reload(); }
 
   private async load() {
     const uid = this.user!.id;

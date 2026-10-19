@@ -51,6 +51,8 @@ export class LocalRepo implements Repo {
     this.commit({ ...this.state, session: { name: name.trim() }, data: this.state.data ?? emptySnapshot(newId) });
     return "signed_in";
   }
+  loadError() { return null; }
+  retry() {}
   async signOut() { this.commit({ ...this.state, session: null }); }
 
   async createTransaction(input: Parameters<Repo["createTransaction"]>[0]) {

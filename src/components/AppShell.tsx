@@ -8,9 +8,9 @@ import {
   CalendarCheck, X,
 } from "lucide-react";
 import { addMonths, monthLabel, monthOf, today } from "@/lib/dates";
-import { useSession } from "@/lib/data";
+import { repo, useLoadError, useSession } from "@/lib/data";
 import { TransactionModal } from "./TransactionModal";
-import { Skeleton } from "./ui";
+import { Button, Skeleton } from "./ui";
 
 interface ShellState {
   month: string;
@@ -77,6 +77,7 @@ function Logo() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const session = useSession();
+  const loadError = useLoadError();
   const router = useRouter();
   const path = usePathname();
   const [chosenMonth, setMonth] = useState<string | null>(null);
@@ -106,6 +107,22 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const toast = useCallback((msg: string, action?: { label: string; run: () => void }) => setToast({ msg, action }), []);
   const openNew = useCallback(() => setModal(true), []);
+
+  if (!session && loadError) {
+    return (
+      <main className="grid min-h-dvh place-items-center bg-surface px-4">
+        <div role="alert" className="w-full max-w-sm rounded-lg border border-border bg-bg p-6 shadow-card">
+          <h1 className="text-xl font-bold">Não deu para carregar seus dados</h1>
+          <p className="mt-1 text-text-muted">Você entrou, mas o banco respondeu com um erro:</p>
+          <p className="mt-2 break-words rounded-sm bg-surface p-2 font-mono text-xs">{loadError}</p>
+          <div className="mt-4 flex gap-2">
+            <Button onClick={() => repo.retry()}>Tentar de novo</Button>
+            <Button variant="secondary" onClick={async () => { await repo.signOut(); router.replace("/entrar"); }}>Sair</Button>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   if (!session) {
     return <div className="p-6"><Skeleton className="h-8 w-40" /></div>;

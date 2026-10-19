@@ -22,3 +22,7 @@ export function useSession() {
   return useSyncExternalStore(subscribe, () => repo.session(), () => undefined);
 }
 
+
+export function useLoadError() {
+  return useSyncExternalStore(subscribe, () => repo.loadError(), () => null);
+}

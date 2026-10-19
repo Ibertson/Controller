@@ -14,6 +14,10 @@ export interface Repo {
   session(): { name: string } | null | undefined;
   signIn(nameOrEmail: string): Promise<SignInResult>;
   signOut(): Promise<void>;
+  /** Mensagem quando os dados não carregaram depois de entrar; null = tudo certo. */
+  loadError(): string | null;
+  /** Tenta carregar os dados de novo depois de um erro. */
+  retry(): void;
 
   snapshot(): Snapshot | null;
   subscribe(listener: () => void): () => void;
