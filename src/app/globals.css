@@ -1,0 +1,87 @@
+/* Tema do Sobra. Gerado de replica/design/tokens.json (gen_css.py). */
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #ffffff;
+  --color-surface: #f5f7f6;
+  --color-surface-raised: #ffffff;
+  --color-border: #e2e7e5;
+  --color-border-input: #7d8a85;
+  --color-text: #121a17;
+  --color-text-muted: #55625d;
+  --color-accent: #0b7a5e;
+  --color-accent-hover: #09654e;
+  --color-accent-soft: #e3f3ee;
+  --color-on-accent: #ffffff;
+  --color-income: #147a3d;
+  --color-expense: #b42d2d;
+  --color-danger: #b42d2d;
+  --color-danger-soft: #fbeaea;
+  --color-success: #147a3d;
+  --color-warning: #8a5a00;
+  --color-warning-soft: #fdf3dc;
+  --color-focus: #0b7a5e;
+  --color-chart-1: #0b7a5e;
+  --color-chart-2: #2f6fd6;
+  --color-chart-3: #c2741b;
+  --color-chart-4: #8b4fc9;
+  --color-chart-5: #c23d7a;
+  --color-chart-6: #5f6f69;
+  --font-sans: var(--font-inter), Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-xs--font-weight: 500;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-sm--font-weight: 400;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-base--font-weight: 400;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.75rem;
+  --text-lg--font-weight: 600;
+  --text-xl: 1.75rem;
+  --text-xl--line-height: 2.125rem;
+  --text-xl--font-weight: 700;
+  --text-display: 2.25rem;
+  --text-display--line-height: 2.5rem;
+  --text-display--font-weight: 700;
+  --space-0: 0px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+  --shadow-card: 0 1px 2px rgba(18,26,23,.05), 0 1px 3px rgba(18,26,23,.08);
+  --shadow-pop: 0 12px 32px rgba(18,26,23,.16);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --ease-out: cubic-bezier(.2,.8,.2,1);
+  --layout-sidebar: 248px;
+  --layout-header: 56px;
+  --layout-bottom-nav: 64px;
+  --layout-content-max: 1120px;
+  --spacing: 4px;
+  --breakpoint-sm: 40rem;
+  --breakpoint-md: 48rem;
+  --breakpoint-lg: 64rem;
+}
+
+@layer base {
+  html { font-family: var(--font-sans); color: var(--color-text); background: var(--color-bg); }
+  .num { font-variant-numeric: tabular-nums; }
+  :focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+}
+
+@layer base {
+  body { background: var(--color-surface); font-size: var(--text-sm); line-height: var(--text-sm--line-height); }
+  button { cursor: pointer; }
+}
