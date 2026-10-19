@@ -128,7 +128,7 @@ export function TransactionModal({ onClose, onSaved }: { onClose: () => void; on
               <input id="tx-amount" ref={amountRef} inputMode="decimal" autoComplete="off" placeholder="0,00" value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 aria-invalid={!!errors.amount} aria-describedby={errors.amount ? "tx-amount-error" : undefined}
-                className={`${inputClass} num h-14 pl-12 text-xl font-bold ${kind === "expense" ? "text-expense" : kind === "income" ? "text-income" : ""}`} />
+                className={`${inputClass.replace("px-3", "pl-14 pr-3")} num h-14 text-xl font-bold ${kind === "expense" ? "text-expense" : kind === "income" ? "text-income" : ""}`} />
             </div>
           </Field>
 
