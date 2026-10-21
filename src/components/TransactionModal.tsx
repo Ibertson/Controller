@@ -23,7 +23,7 @@ export function TransactionModal({ initialKind = "expense", onClose, onSaved }:
   const [accountId, setAccountId] = useState("");
   const [toAccountId, setToAccountId] = useState("");
   const [cardId, setCardId] = useState("");
-  const [personId, setPersonId] = useState("");
+  const [personId, setPersonId] = useState<string | null>(null); // null: segue a pessoa do cartão
   const [date, setDate] = useState(today());
   const [installments, setInstallments] = useState(1);
   const [paid, setPaid] = useState(true);
@@ -63,6 +63,7 @@ export function TransactionModal({ initialKind = "expense", onClose, onSaved }:
   const usingCard = kind === "expense" && payWith === "card";
   const card = cards.find((c) => c.id === sourceCard);
   const statement = usingCard && card ? statementMonthFor(date, card.closingDay) : null;
+  const chosenPerson = personId ?? (usingCard && card?.personId ? card.personId : "");
 
   const limitWarning = (() => {
     if (!snap || kind !== "expense" || !categoryId || !cents) return null;
@@ -91,7 +92,7 @@ export function TransactionModal({ initialKind = "expense", onClose, onSaved }:
         kind, amountCents: cents!, occurredOn: date, description,
         categoryId: kind === "transfer" ? null : categoryId || null,
         accountId: usingCard ? null : sourceAccount, toAccountId: kind === "transfer" ? toAccountId : null,
-        cardId: usingCard ? sourceCard : null, personId: personId || null,
+        cardId: usingCard ? sourceCard : null, personId: chosenPerson || null,
         installments: usingCard ? installments : 1,
         isPaid: usingCard || kind === "transfer" ? true : paid,
         dueOn: paid ? null : date,
@@ -190,7 +191,7 @@ export function TransactionModal({ initialKind = "expense", onClose, onSaved }:
             </Field>
             {people.length > 0 && kind !== "transfer" && (
               <Field label={kind === "income" ? "Quem recebeu" : "Quem gastou"} htmlFor="tx-person">
-                <select id="tx-person" value={personId} onChange={(e) => setPersonId(e.target.value)} className={inputClass}>
+                <select id="tx-person" value={chosenPerson} onChange={(e) => setPersonId(e.target.value)} className={inputClass}>
                   <option value="">Ninguém em especial</option>
                   {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
