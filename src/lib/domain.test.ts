@@ -3,8 +3,9 @@ import { formatBRL, formatSigned, parseBRL, splitInstallments } from "./money";
 import { addMonthsToDay, dayLabel, monthLabel, statementMonthFor, today } from "./dates";
 import { buildTransactions, ValidationError } from "./transactions";
 import {
-  accountBalances, accountStatement, categoryUsage, forecast, incomeByAccount, monthBreakdown, monthSeries, monthTotals, projectedLeftover, totalsByCategory, upcomingBills,
+  accountBalances, accountStatement, balanceSeries, categoryUsage, forecast, totalsByPerson, incomeByAccount, monthBreakdown, monthSeries, monthTotals, projectedLeftover, totalsByCategory, upcomingBills,
 } from "./summary";
+import { transactionsCsv } from "./csv";
 import type { Card, Snapshot } from "./types";
 
 describe("money", () => {
@@ -147,5 +148,15 @@ describe("resumos", () => {
     const f = forecast(snap, "2026-10-01", 2);
     expect(f[0]).toMatchObject({ incomeCents: 0, expenseCents: 18000 + 9000, balanceCents: 392500 + 5000 - 27000 });
     expect(f[1].balanceCents).toBe(f[0].balanceCents);
+  });
+  it("saldo no fim de cada mês e totais por pessoa", () => {
+    const b = balanceSeries(snap, "2026-10-01", 2);
+    expect(b).toEqual([{ month: "2026-09-01", balanceCents: 100000 }, { month: "2026-10-01", balanceCents: 100000 + 5000 + 300000 - 2500 - 5000 }]);
+    expect(totalsByPerson(snap, "2026-10-01", "expense").get("")).toBe(2500 + 18000 + 9000);
+  });
+  it("exporta CSV que o Excel abre", () => {
+    const csv = transactionsCsv(snap, snap.transactions).split("\r\n");
+    expect(csv[0]).toBe("Data;Tipo;Descrição;Categoria;Conta ou cartão;Pessoa;Valor;Pago;Parcela");
+    expect(csv).toContain("2026-10-19;Despesa;Luz;;Banco;;-180,00;Não;");
   });
 });

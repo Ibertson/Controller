@@ -17,50 +17,63 @@ export function Empty({ children }: { children: string }) {
   return <p className="grid min-h-40 place-items-center text-center text-sm text-text-muted">{children}</p>;
 }
 
-/** Linhas de receitas e despesas por mês. Linhas em SVG esticado; textos e pontos em HTML para não distorcer. */
-export function IncomeExpenseChart({ points }: { points: MonthPoint[] }) {
-  const max = Math.max(1, ...points.flatMap((p) => [p.incomeCents, p.expenseCents]));
-  const x = (i: number) => (points.length === 1 ? 50 : (i * 100) / (points.length - 1));
-  const y = (v: number) => 100 * (1 - v / max);
-  const series = [
-    { key: "incomeCents" as const, color: "var(--color-income)" },
-    { key: "expenseCents" as const, color: "var(--color-expense)" },
-  ];
-  const summary = points.map((p) => `${shortMonth(p.month)}: receitas ${formatBRL(p.incomeCents)}, despesas ${formatBRL(p.expenseCents)}`).join("; ");
+interface LineSeries { label: string; color: string; values: number[]; }
+
+/** Linhas por mês. Linhas em SVG esticado; textos e pontos em HTML para não distorcer. Aceita valores negativos. */
+export function LineChart({ months, series, label }: { months: string[]; series: LineSeries[]; label: string }) {
+  const all = series.flatMap((s) => s.values);
+  const max = Math.max(1, ...all);
+  const min = Math.min(0, ...all);
+  const x = (i: number) => (months.length === 1 ? 50 : (i * 100) / (months.length - 1));
+  const y = (v: number) => 100 * (1 - (v - min) / (max - min));
+  const ticks = min < 0 ? [max, 0, min] : [max, max / 2, 0];
 
   return (
-    <figure role="img" aria-label={`Receitas e despesas por mês. ${summary}`}>
+    <figure role="img" aria-label={label}>
       <div aria-hidden className="grid grid-cols-[auto_1fr] gap-x-2">
-        <div className="flex h-48 flex-col justify-between py-0 text-right text-[11px] leading-none text-text-muted">
-          {[max, max / 2, 0].map((v) => <span key={v} className="num -translate-y-1/2 first:translate-y-0 last:translate-y-0">{compactBRL(v)}</span>)}
+        <div className="relative h-48 w-16 text-right text-[11px] leading-none text-text-muted">
+          {ticks.map((v) => (
+            <span key={v} className="num absolute right-0 -translate-y-1/2" style={{ top: `${Math.min(100, Math.max(0, y(v)))}%` }}>{compactBRL(v)}</span>
+          ))}
         </div>
         <div className="relative h-48 border-b border-l border-border">
-          <div className="absolute inset-x-0 top-0 border-t border-dashed border-border" />
-          <div className="absolute inset-x-0 top-1/2 border-t border-dashed border-border" />
+          {ticks.map((v) => <div key={v} className="absolute inset-x-0 border-t border-dashed border-border" style={{ top: `${y(v)}%` }} />)}
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible">
             {series.map((s) => (
-              <polyline key={s.key} points={points.map((p, i) => `${x(i)},${y(p[s.key])}`).join(" ")} fill="none"
+              <polyline key={s.label} points={s.values.map((v, i) => `${x(i)},${y(v)}`).join(" ")} fill="none"
                 strokeWidth={2.5} strokeLinejoin="round" vectorEffect="non-scaling-stroke" style={{ stroke: s.color }} />
             ))}
           </svg>
-          {series.map((s) => points.map((p, i) => (
-            <span key={s.key + p.month} className="absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-pill"
-              style={{ left: `${x(i)}%`, top: `${y(p[s.key])}%`, background: s.color }} />
+          {series.map((s) => s.values.map((v, i) => (
+            <span key={s.label + months[i]} className="absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-pill"
+              style={{ left: `${x(i)}%`, top: `${y(v)}%`, background: s.color }} />
           )))}
         </div>
         <span />
         <div className="relative mt-1.5 h-4 text-[11px] text-text-muted">
-          {points.map((p, i) => (
-            <span key={p.month} className={`absolute top-0 ${i === 0 ? "" : i === points.length - 1 ? "-translate-x-full" : "-translate-x-1/2"}`}
-              style={{ left: `${x(i)}%` }}>{shortMonth(p.month)}</span>
+          {months.map((m, i) => (
+            <span key={m} className={`absolute top-0 ${i === 0 ? "" : i === months.length - 1 ? "-translate-x-full" : "-translate-x-1/2"}`}
+              style={{ left: `${x(i)}%` }}>{shortMonth(m)}</span>
           ))}
         </div>
       </div>
       <figcaption className="mt-3 flex gap-4 text-xs text-text-muted">
-        <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-pill bg-income" />Receitas</span>
-        <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-pill bg-expense" />Despesas</span>
+        {series.map((s) => (
+          <span key={s.label} className="flex items-center gap-1.5"><span className="size-2.5 rounded-pill" style={{ background: s.color }} />{s.label}</span>
+        ))}
       </figcaption>
     </figure>
+  );
+}
+
+/** Receitas e despesas por mês. */
+export function IncomeExpenseChart({ points }: { points: MonthPoint[] }) {
+  const summary = points.map((p) => `${shortMonth(p.month)}: receitas ${formatBRL(p.incomeCents)}, despesas ${formatBRL(p.expenseCents)}`).join("; ");
+  return (
+    <LineChart months={points.map((p) => p.month)} label={`Receitas e despesas por mês. ${summary}`} series={[
+      { label: "Receitas", color: "var(--color-income)", values: points.map((p) => p.incomeCents) },
+      { label: "Despesas", color: "var(--color-expense)", values: points.map((p) => p.expenseCents) },
+    ]} />
   );
 }
 
