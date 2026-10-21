@@ -182,7 +182,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <QuickAction icon={TrendingUp} tone="bg-accent-soft text-income" label="Nova receita" onClick={() => openNew("income")} />
           <QuickAction icon={TrendingDown} tone="bg-danger-soft text-expense" label="Nova despesa" onClick={() => openNew("expense")} />
-          <QuickAction icon={ListOrdered} tone="bg-surface text-chart-2" label="Ver extrato" href="/extrato" />
+          <QuickAction icon={ListOrdered} tone="bg-surface text-chart-2" label="Ver transações" href="/transacoes" />
           <QuickAction icon={CalendarCheck} tone="bg-surface text-chart-4" label="Fechar o mês" href="/fechamento" />
         </div>
       </section>
@@ -220,7 +220,7 @@ export default function Dashboard() {
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         <Card>
-          <Title aside={recent.length > 0 && <Link href="/extrato" className="text-sm font-semibold text-accent">Ver todos</Link>}>Últimos lançamentos</Title>
+          <Title aside={recent.length > 0 && <Link href="/transacoes" className="text-sm font-semibold text-accent">Ver todos</Link>}>Últimos lançamentos</Title>
           {recent.length ? <TransactionList snap={snap} items={recent} onDeleted={toast} /> : (
             <EmptyState icon={Wallet} title="Comece registrando o primeiro gasto. Leva 5 segundos."
               action={<Button onClick={() => openNew()}><Plus aria-hidden className="size-4" />Novo lançamento</Button>} />

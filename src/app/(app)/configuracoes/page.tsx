@@ -9,7 +9,7 @@ export default function Configuracoes() {
   const router = useRouter();
   return (
     <div>
-      <PageTitle>Configurações</PageTitle>
+      <PageTitle>Perfil</PageTitle>
       <Card className="flex flex-col gap-3">
         <p>Conectado como <strong>{session?.name}</strong>. {repo.mode === "supabase" ? "Seus dados ficam na sua conta e aparecem em qualquer aparelho." : "Seus dados estão guardados neste aparelho."}</p>
         <div><Button variant="secondary" onClick={async () => { await repo.signOut(); router.replace("/entrar"); }}>Sair</Button></div>
