@@ -3,21 +3,21 @@
 import Link from "next/link";
 import { useState } from "react";
 import {
-  ArrowLeftRight, ArrowDown, ArrowUp, CreditCard, Download, Filter, Landmark, ListOrdered, Plus, TrendingUp, Upload, Users, Wallet,
+  ArrowLeftRight, ArrowDown, ArrowUp, CreditCard, Download, Eye, Filter, Landmark, ListOrdered, Pencil, Plus, Trash2, TrendingUp, Upload, Users, Wallet,
 } from "lucide-react";
 import { useShell } from "@/components/AppShell";
 import { LineChart } from "@/components/charts";
 import { MonthPicker } from "@/components/MonthPicker";
+import { PersonEdit, PersonView, initials } from "@/components/PersonModals";
 import { TransactionList } from "@/components/TransactionList";
 import { Card, EmptyState, Skeleton, inputClass } from "@/components/ui";
-import { useSession, useSnapshot } from "@/lib/data";
+import { repo, useSession, useSnapshot } from "@/lib/data";
 import { monthOf, today } from "@/lib/dates";
 import { transactionsCsv } from "@/lib/csv";
 import { formatBRL } from "@/lib/money";
 import { accountBalances, balanceSeries, monthTotals, monthTransactions, totalBalance, totalsByPerson } from "@/lib/summary";
-import type { AccountKind } from "@/lib/types";
+import type { AccountKind, Person } from "@/lib/types";
 
-const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
 const kindLabel: Record<AccountKind, string> = { checking: "Conta corrente", savings: "Poupança", wallet: "Dinheiro", other: "Outra" };
 
 export default function Transacoes() {
@@ -32,6 +32,10 @@ export default function Transacoes() {
   const [source, setSource] = useState("");
   const [category, setCategory] = useState("");
   const [person, setPerson] = useState("");
+  // Pessoa clicada (mostra Ver/Editar/Apagar) e janelas abertas.
+  const [active, setActive] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<{ id: string; name: string } | null>(null);
+  const [editing, setEditing] = useState<Person | null>(null);
 
   if (!snap) return <div className="flex flex-col gap-4">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-28" />)}</div>;
 
@@ -58,6 +62,13 @@ export default function Transacoes() {
 
   const accBalances = accountBalances(snap);
   const accounts = snap.accounts.filter((a) => !a.archived);
+
+  async function removePerson(p: Person) {
+    if (!confirm(`Apagar ${p.name}? Os lançamentos ligados a essa pessoa continuam salvos.`)) return;
+    setActive(null);
+    await repo.upsertPerson({ ...p, archived: true });
+    toast("Pessoa apagada");
+  }
   const groups = [
     { label: "Contas bancárias", list: accounts.filter((a) => a.kind === "checking" || a.kind === "savings") },
     { label: "Outros", list: accounts.filter((a) => a.kind === "wallet" || a.kind === "other") },
@@ -98,8 +109,21 @@ export default function Transacoes() {
           {people.map((p) => {
             const cents = byPerson.get(p.id) ?? 0;
             return (
-              <li key={p.id || "me"} className="flex w-24 flex-col items-center gap-1.5 text-center">
-                <span className="grid size-16 place-items-center rounded-pill bg-accent text-lg font-semibold text-on-accent ring-4 ring-accent-soft">{initials(p.name)}</span>
+              <li key={p.id || "me"} className="relative flex w-24 flex-col items-center gap-1.5 pt-8 text-center">
+                {active === p.id && (
+                  <div className="absolute top-0 flex gap-1 rounded-pill border border-border bg-surface-raised p-0.5 shadow-card">
+                    <button type="button" aria-label={`Ver lançamentos de ${p.name}`} onClick={() => { setViewing(p); setActive(null); }}
+                      className="grid size-7 place-items-center rounded-pill text-text-muted hover:bg-surface hover:text-text"><Eye aria-hidden className="size-4" /></button>
+                    {"workspaceId" in p && <>
+                      <button type="button" aria-label={`Editar ${p.name}`} onClick={() => { setEditing(p); setActive(null); }}
+                        className="grid size-7 place-items-center rounded-pill text-text-muted hover:bg-surface hover:text-text"><Pencil aria-hidden className="size-4" /></button>
+                      <button type="button" aria-label={`Apagar ${p.name}`} onClick={() => removePerson(p)}
+                        className="grid size-7 place-items-center rounded-pill text-danger hover:bg-danger-soft"><Trash2 aria-hidden className="size-4" /></button>
+                    </>}
+                  </div>
+                )}
+                <button type="button" aria-expanded={active === p.id} aria-label={`Opções de ${p.name}`} onClick={() => setActive(active === p.id ? null : p.id)}
+                  className="grid size-16 place-items-center rounded-pill bg-accent text-lg font-semibold text-on-accent ring-4 ring-accent-soft hover:ring-accent aria-expanded:ring-accent">{initials(p.name)}</button>
                 <span className="w-full truncate text-sm font-medium">{p.name}</span>
                 <span className={`num text-xs font-semibold ${side === "expense" ? "text-expense" : "text-income"}`}>{formatBRL(cents)}</span>
               </li>
@@ -235,6 +259,9 @@ export default function Transacoes() {
           )}
         </Card>
       </section>
+
+      {viewing && <PersonView snap={snap} person={viewing} month={month} side={side} onClose={() => setViewing(null)} onDeleted={toast} />}
+      {editing && <PersonEdit person={editing} onClose={() => setEditing(null)} onSaved={toast} />}
     </div>
   );
 }
