@@ -19,11 +19,13 @@ const fromAccount = (a: Account) => ({
 const toCard = (r: Row): Card => ({
   id: r.id as string, workspaceId: r.workspace_id as string, name: r.name as string, limitCents: Number(r.limit_cents),
   closingDay: r.closing_day as number, dueDay: r.due_day as number, paymentAccountId: (r.payment_account_id as string) ?? null,
-  archived: r.archived as boolean,
+  archived: r.archived as boolean, bank: (r.bank as string) ?? null, last4: (r.last4 as string) ?? null,
+  brand: (r.brand as string) ?? null, color: (r.color as string) ?? null, personId: (r.person_id as string) ?? null,
 });
 const fromCard = (c: Card) => ({
   id: c.id, workspace_id: c.workspaceId, name: c.name, limit_cents: c.limitCents, closing_day: c.closingDay, due_day: c.dueDay,
   payment_account_id: c.paymentAccountId, archived: c.archived,
+  bank: c.bank ?? null, last4: c.last4 ?? null, brand: c.brand ?? null, color: c.color ?? null, person_id: c.personId ?? null,
 });
 const toCategory = (r: Row): Category => ({
   id: r.id as string, workspaceId: r.workspace_id as string, name: r.name as string, icon: (r.icon as string) ?? "",

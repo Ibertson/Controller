@@ -16,6 +16,8 @@ export interface Account {
 export interface Card {
   id: ID; workspaceId: ID; name: string; limitCents: number;
   closingDay: number; dueDay: number; paymentAccountId: ID | null; archived: boolean;
+  /** Campos visuais (opcionais: cartões antigos não têm). */
+  bank?: string | null; last4?: string | null; brand?: string | null; color?: string | null; personId?: ID | null;
 }
 
 export interface Category {
