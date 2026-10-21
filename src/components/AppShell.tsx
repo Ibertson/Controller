@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import {
-  ChevronDown, ChevronLeft, ChevronRight, CreditCard, Flag, HandCoins, Home, Landmark, ListOrdered, Menu, Plus, Settings, Tags, Users,
+  Bell, Car, CircleDollarSign, CircleUserRound, FileText, Heart, PlayCircle, TrendingUp, WalletCards,
+  ChevronDown, ChevronLeft, ChevronRight, CreditCard, Flag, HandCoins, Home, Landmark, ListOrdered, Menu, Plus, Tags, Users,
   CalendarCheck, X,
 } from "lucide-react";
 import { addMonths, monthLabel, monthOf, today } from "@/lib/dates";
@@ -28,19 +29,28 @@ export function useShell() {
 const nav = [
   { group: "Essencial", items: [
     { href: "/", label: "Painel", icon: Home },
-    { href: "/extrato", label: "Extrato", icon: ListOrdered },
-    { href: "/contas", label: "Contas", icon: Landmark },
+    { href: "/transacoes", label: "Transações", icon: CircleDollarSign },
     { href: "/cartoes", label: "Cartões", icon: CreditCard },
+    { href: "/extrato", label: "Extrato", icon: FileText },
+    { href: "/contas", label: "Contas", icon: Landmark },
   ] },
   { group: "Planejamento", items: [
+    { href: "/previsao", label: "Previsão", icon: WalletCards },
     { href: "/categorias", label: "Categorias", icon: Tags },
     { href: "/metas", label: "Metas", icon: Flag },
-    { href: "/dividas", label: "Dívidas", icon: HandCoins },
     { href: "/fechamento", label: "Fechar o mês", icon: CalendarCheck },
   ] },
   { group: "Mais", items: [
+    { href: "/investimentos", label: "Investimentos", icon: TrendingUp },
+    { href: "/dividas", label: "Dívidas", icon: HandCoins },
+    { href: "/lembretes", label: "Lembretes", icon: Bell },
+    { href: "/veiculos", label: "Veículos", icon: Car },
+    { href: "/desejos", label: "Lista de desejos", icon: Heart },
     { href: "/pessoas", label: "Pessoas", icon: Users },
-    { href: "/configuracoes", label: "Configurações", icon: Settings },
+  ] },
+  { group: "Ajuda", items: [
+    { href: "/tutorial", label: "Tutorial", icon: PlayCircle },
+    { href: "/configuracoes", label: "Perfil", icon: CircleUserRound },
   ] },
 ];
 
@@ -145,7 +155,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   // Só calcula "hoje" no navegador (no servidor a sessão ainda é undefined e paramos acima).
   const month = chosenMonth ?? monthOf(today());
   // No painel o mês é escolhido nos botões de mês da própria página.
-  const showMonth = ["/extrato", "/categorias", "/fechamento"].includes(path);
+  const showMonth = ["/transacoes", "/extrato", "/categorias", "/fechamento"].includes(path);
 
   return (
     <ShellCtx.Provider value={{ month, setMonth, openNew, toast }}>
@@ -189,7 +199,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
 
       <nav aria-label="Atalhos" className="fixed inset-x-0 bottom-0 z-30 grid h-[var(--layout-bottom-nav)] grid-cols-5 items-center border-t border-border bg-bg text-xs text-text-muted lg:hidden">
-        {[{ href: "/", label: "Início", icon: Home }, { href: "/extrato", label: "Extrato", icon: ListOrdered }, null,
+        {[{ href: "/", label: "Início", icon: Home }, { href: "/transacoes", label: "Transações", icon: ListOrdered }, null,
           { href: "/cartoes", label: "Cartões", icon: CreditCard }, { href: "/metas", label: "Metas", icon: Flag }].map((it, i) =>
           it ? (
             <Link key={it.href} href={it.href} aria-current={(it.href === "/" ? path === "/" : path.startsWith(it.href)) ? "page" : undefined}

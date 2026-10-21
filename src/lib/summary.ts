@@ -144,3 +144,61 @@ export function incomeByAccount(s: Snapshot, month: string): Slice[] {
   }
   return [...sums].map(([id, cents]) => ({ id, label: s.accounts.find((a) => a.id === id)?.name ?? "Conta", cents })).sort((a, b) => b.cents - a.cents);
 }
+
+export interface StatementLine { transaction: Transaction; deltaCents: number; balanceCents: number; }
+
+/** Quanto um lançamento pago mexe no saldo de uma conta (0 se não mexe). */
+function accountDelta(t: Transaction, accountId: string): number {
+  if (!t.isPaid) return 0;
+  if (t.kind === "income" && t.accountId === accountId) return t.amountCents;
+  if ((t.kind === "expense" || t.kind === "card_payment") && t.accountId === accountId) return -t.amountCents;
+  if (t.kind === "transfer") return (t.toAccountId === accountId ? t.amountCents : 0) - (t.accountId === accountId ? t.amountCents : 0);
+  return 0;
+}
+
+/** Extrato de uma conta no mês: saldo de abertura e cada movimento pago com o saldo depois dele (pela data do movimento). */
+export function accountStatement(s: Snapshot, accountId: string, month: string) {
+  const account = s.accounts.find((a) => a.id === accountId);
+  const prefix = month.slice(0, 7);
+  let opening = account?.initialBalanceCents ?? 0;
+  const inMonth: Transaction[] = [];
+  for (const t of s.transactions) {
+    const d = accountDelta(t, accountId);
+    if (!d) continue;
+    if (t.occurredOn < month) opening += d;
+    else if (t.occurredOn.startsWith(prefix)) inMonth.push(t);
+  }
+  inMonth.sort((a, b) => a.occurredOn.localeCompare(b.occurredOn) || a.createdAt.localeCompare(b.createdAt));
+  let balance = opening;
+  const lines: StatementLine[] = inMonth.map((t) => {
+    const deltaCents = accountDelta(t, accountId);
+    balance += deltaCents;
+    return { transaction: t, deltaCents, balanceCents: balance };
+  });
+  return { openingCents: opening, closingCents: balance, lines };
+}
+
+export interface ForecastMonth { month: string; incomeCents: number; expenseCents: number; balanceCents: number; }
+
+/**
+ * Previsão dos próximos `n` meses a partir de `fromMonth`: o que já está lançado para cada mês
+ * (parcelas, contas a pagar, receitas futuras) e o saldo acumulado a partir do saldo de hoje.
+ * No mês atual só conta o que ainda não foi pago (o pago já está no saldo).
+ */
+export function forecast(s: Snapshot, fromMonth: string, n: number): ForecastMonth[] {
+  const [y, m] = fromMonth.split("-").map(Number);
+  let balance = totalBalance(s);
+  return Array.from({ length: n }, (_, i) => {
+    const month = new Date(Date.UTC(y, m - 1 + i, 1)).toISOString().slice(0, 10);
+    let incomeCents = 0, expenseCents = 0;
+    for (const t of monthTransactions(s, month)) {
+      // compra no cartão sai quando a fatura é paga, então conta no mês da fatura mesmo se já "paga" no cartão
+      const pending = !t.isPaid || (t.kind === "expense" && !!t.cardId);
+      if (i === 0 && !pending) continue;
+      if (t.kind === "income") incomeCents += t.amountCents;
+      if (t.kind === "expense") expenseCents += t.amountCents;
+    }
+    balance += incomeCents - expenseCents;
+    return { month, incomeCents, expenseCents, balanceCents: balance };
+  });
+}

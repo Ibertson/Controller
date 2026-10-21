@@ -3,7 +3,7 @@ import { formatBRL, formatSigned, parseBRL, splitInstallments } from "./money";
 import { addMonthsToDay, dayLabel, monthLabel, statementMonthFor, today } from "./dates";
 import { buildTransactions, ValidationError } from "./transactions";
 import {
-  accountBalances, categoryUsage, incomeByAccount, monthBreakdown, monthSeries, monthTotals, projectedLeftover, totalsByCategory, upcomingBills,
+  accountBalances, accountStatement, categoryUsage, forecast, incomeByAccount, monthBreakdown, monthSeries, monthTotals, projectedLeftover, totalsByCategory, upcomingBills,
 } from "./summary";
 import type { Card, Snapshot } from "./types";
 
@@ -135,5 +135,17 @@ describe("resumos", () => {
       { id: "outros", label: "Outros", cents: 18000 }, { id: "k1", label: "Mercado", cents: 11500 },
     ]);
     expect(incomeByAccount(snap, "2026-10-01")).toEqual([{ id: "a1", label: "Banco", cents: 300000 }]);
+  });
+  it("extrato da conta com saldo de abertura e saldo corrente", () => {
+    const st = accountStatement(snap, "a1", "2026-10-01");
+    expect(st.openingCents).toBe(100000);
+    expect(st.lines.map((l) => l.deltaCents)).toEqual([300000, -2500, -5000]);
+    expect(st.closingCents).toBe(100000 + 300000 - 2500 - 5000);
+    expect(accountStatement(snap, "a1", "2026-11-01").openingCents).toBe(st.closingCents);
+  });
+  it("previsão soma o que falta pagar no mês e acumula o saldo", () => {
+    const f = forecast(snap, "2026-10-01", 2);
+    expect(f[0]).toMatchObject({ incomeCents: 0, expenseCents: 18000 + 9000, balanceCents: 392500 + 5000 - 27000 });
+    expect(f[1].balanceCents).toBe(f[0].balanceCents);
   });
 });
