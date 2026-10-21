@@ -269,7 +269,7 @@ export default function Transacoes() {
       {tool === "import" && <ImportStatementModal snap={snap} onClose={() => setTool(null)} onDone={toast} />}
       {tool === "export" && <ExportModal snap={snap} month={month} selfName={session?.name ?? "Você"} onClose={() => setTool(null)} onDone={toast} />}
       {tool === "trash" && <TrashModal snap={snap} onClose={() => setTool(null)} onDone={toast} />}
-      {tool === "bulk" && <BulkDeleteModal snap={snap} month={month} onClose={() => setTool(null)}
+      {tool === "bulk" && <BulkDeleteModal snap={snap} onClose={() => setTool(null)}
         onDone={(msg, undo) => toast(msg, undo ? { label: "Desfazer", run: undo } : undefined)} />}
       {editing && <PersonEdit person={editing} onClose={() => setEditing(null)} onSaved={toast} />}
     </div>

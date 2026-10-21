@@ -1,4 +1,5 @@
 import type { Account, Card, Category, NewTransactionInput, Person, Snapshot, Transaction } from "../types";
+import { emptySnapshot } from "./seed";
 
 /**
  * Camada de dados. A Fase 1 começa com LocalRepo (navegador) e troca por SupabaseRepo
@@ -34,6 +35,8 @@ export interface Repo {
   /** Apaga de vez (só da lixeira ou para desfazer um lançamento recém-criado). */
   purgeTransactions(ids: string[]): Promise<void>;
   markPaid(id: string, accountId?: string): Promise<void>;
+  /** Apaga tudo do painel pessoal e recomeça com uma conta e as categorias padrão. Login e nome ficam. */
+  resetAll(): Promise<void>;
 
   upsertAccount(a: Omit<Account, "workspaceId" | "id"> & { id?: string }): Promise<Account>;
   upsertCard(c: Omit<Card, "workspaceId" | "id"> & { id?: string }): Promise<Card>;
@@ -64,4 +67,17 @@ export function moveFromTrash(d: Snapshot, ids: string[]): Snapshot {
 export function dropForever(d: Snapshot, ids: string[]): Snapshot {
   const set = new Set(ids);
   return { ...d, transactions: d.transactions.filter((t) => !set.has(t.id)), trash: (d.trash ?? []).filter((t) => !set.has(t.id)) };
+}
+
+/** Painel recomeçado no mesmo espaço: só a conta principal e as categorias padrão. */
+export function freshSnapshot(workspace: Snapshot["workspace"], newId: () => string): Snapshot {
+  const seed = emptySnapshot(newId);
+  const own = <T extends { workspaceId: string }>(list: T[]) => list.map((x) => ({ ...x, workspaceId: workspace.id }));
+  return { ...seed, workspace, accounts: own(seed.accounts), categories: own(seed.categories), trash: [] };
+}
+
+/** Lixeira guarda por 30 dias; ids que já passaram disso. */
+export function expiredTrash(trash: Transaction[], now: Date, days = 30): string[] {
+  const limit = new Date(now.getTime() - days * 86400000).toISOString();
+  return trash.filter((t) => t.deletedAt && t.deletedAt < limit).map((t) => t.id);
 }

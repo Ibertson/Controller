@@ -8,6 +8,9 @@ export function Dialog({ title, onClose, children, wide }: { title: ReactNode; o
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Com uma janela aberta sobre outra, só a de cima responde ao teclado.
+      const open = document.querySelectorAll("[role=dialog][aria-modal=true]");
+      if (open[open.length - 1] !== ref.current) return;
       if (e.key === "Escape") { e.preventDefault(); onClose(); }
       if (e.key === "Tab" && ref.current) {
         const f = ref.current.querySelectorAll<HTMLElement>("button, input, select, [tabindex]:not([tabindex='-1'])");

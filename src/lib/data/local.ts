@@ -2,7 +2,7 @@
 
 import { buildTransactions } from "../transactions";
 import type { Snapshot } from "../types";
-import { dropForever, moveFromTrash, moveToTrash, scopeIds, type Repo, type SignInResult } from "./repo";
+import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, type Repo, type SignInResult } from "./repo";
 import { emptySnapshot } from "./seed";
 
 const KEY = "sobra:v1";
@@ -78,6 +78,7 @@ export class LocalRepo implements Repo {
   async trashTransactions(ids: string[]) { this.update((d) => moveToTrash(d, ids, new Date().toISOString())); }
   async restoreTransactions(ids: string[]) { this.update((d) => moveFromTrash(d, ids)); }
   async purgeTransactions(ids: string[]) { this.update((d) => dropForever(d, ids)); }
+  async resetAll() { this.update((d) => freshSnapshot(d.workspace, newId)); }
 
   async markPaid(id: string, accountId?: string) {
     this.update((d) => ({
