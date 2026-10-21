@@ -12,6 +12,8 @@ export interface Repo {
   readonly mode: "local" | "supabase";
   /** Usuário atual; null = precisa entrar; undefined = ainda carregando. */
   session(): { name: string } | null | undefined;
+  /** Muda o nome do titular (quem está conectado). */
+  renameSelf(name: string): Promise<void>;
   signIn(nameOrEmail: string): Promise<SignInResult>;
   signOut(): Promise<void>;
   /** Mensagem quando os dados não carregaram depois de entrar; null = tudo certo. */

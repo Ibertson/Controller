@@ -54,6 +54,7 @@ export class LocalRepo implements Repo {
   loadError() { return null; }
   retry() {}
   async signOut() { this.commit({ ...this.state, session: null }); }
+  async renameSelf(name: string) { this.load(); this.commit({ ...this.state, session: { name } }); }
 
   async createTransaction(input: Parameters<Repo["createTransaction"]>[0]) {
     const d = this.data();
