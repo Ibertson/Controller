@@ -3,7 +3,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildTransactions } from "../transactions";
 import type { Account, Card, Category, NewTransactionInput, Person, Snapshot, Transaction } from "../types";
-import { dropForever, moveFromTrash, moveToTrash, scopeIds, type Repo, type SignInResult } from "./repo";
+import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, type Repo, type SignInResult } from "./repo";
 import { emptySnapshot } from "./seed";
 
 // Banco: supabase/migrations. As colunas são snake_case; aqui viram camelCase.
@@ -237,6 +237,18 @@ export class SupabaseRepo implements Repo {
     if (!ids.length) return;
     for (const chunk of chunks(ids)) must(await this.db.from("transactions").delete().in("id", chunk));
     this.set((d) => dropForever(d, ids));
+  }
+
+  async resetAll() {
+    const ws = this.data!.workspace;
+    // Ordem das chaves estrangeiras: lançamentos antes de contas, cartões, categorias e pessoas.
+    for (const table of ["transactions", "goal_contributions", "goals", "debts", "month_closings", "cards", "accounts", "categories", "people"]) {
+      must(await this.db.from(table).delete().eq("workspace_id", ws.id));
+    }
+    const fresh = freshSnapshot(ws, newId);
+    must(await this.db.from("accounts").insert(fresh.accounts.map(fromAccount)));
+    must(await this.db.from("categories").insert(fresh.categories.map(fromCategory)));
+    this.set(() => fresh);
   }
 
   async markPaid(id: string, accountId?: string) {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_EXPENSE, DEFAULT_INCOME, defaultCategoryChanges } from "./categories";
-import { dropForever, moveFromTrash, moveToTrash, scopeIds } from "./data/repo";
+import { bulkPayments, bulkTransactions, defaultBulkRange } from "./bulk";
+import { dropForever, expiredTrash, freshSnapshot, moveFromTrash, moveToTrash, scopeIds } from "./data/repo";
 import { emptySnapshot } from "./data/seed";
 import { emptyFilters, filterStatement, statementTotals, type ExtratoFilters } from "./extrato";
 import { filterForExport } from "./report";
@@ -137,5 +138,42 @@ describe("tela de extrato", () => {
     expect(filterStatement(snap, f({ minCents: 2000, maxCents: 10000 })).map((t) => t.description)).toEqual(["Mercado Bom Preço"]);
     expect(filterStatement(snap, f({ sourceId: "a2" }))).toHaveLength(1);
     expect(statementTotals(filterStatement(snap, f({})))).toEqual({ income: 300000, expense: 6000, net: 294000 });
+  });
+});
+
+describe("excluir em massa e resetar", () => {
+  const base = emptySnapshot(() => Math.random().toString(36).slice(2));
+  const acc = base.accounts[0].id;
+  const tx = (o: Partial<Transaction>): Transaction => ({
+    id: Math.random().toString(36).slice(2), workspaceId: base.workspace.id, kind: "expense", amountCents: 1000, occurredOn: "2026-10-05", description: "x",
+    categoryId: null, accountId: acc, toAccountId: null, cardId: null, personId: null, isPaid: true, statementMonth: null, dueOn: null, source: "app",
+    installmentGroupId: null, installmentNumber: null, installmentTotal: null, createdAt: "2026-10-05T00:00:00Z", ...o,
+  });
+  const snap = { ...base, transactions: [
+    tx({ kind: "income", description: "Salário" }), tx({ description: "Mercado" }),
+    tx({ description: "Jantar", cardId: "c1", accountId: null }), tx({ kind: "card_payment", description: "Fatura", statementMonth: "2026-10-01" }),
+    tx({ description: "Antigo", occurredOn: "2019-05-01" }),
+  ] };
+  const r = { ...defaultBulkRange("2026-10-21"), search: "" };
+  it("período padrão vai de 2020 até o fim do mês", () => expect(r).toMatchObject({ from: "2020-01-01", to: "2026-10-31" }));
+  it("separa transações e pagamentos de fatura", () => {
+    const d = (l: Transaction[]) => l.map((t) => t.description).sort();
+    expect(d(bulkTransactions(snap, { ...r, filter: "all" }))).toEqual(["Jantar", "Mercado", "Salário"]);
+    expect(d(bulkTransactions(snap, { ...r, filter: "expense" }))).toEqual(["Mercado"]);
+    expect(d(bulkTransactions(snap, { ...r, filter: "card" }))).toEqual(["Jantar"]);
+    expect(d(bulkTransactions(snap, { ...r, search: "sala", filter: "all" }))).toEqual(["Salário"]);
+    expect(d(bulkPayments(snap, { ...r, filter: "all" }))).toEqual(["Fatura"]);
+    expect(bulkPayments(snap, { ...r, filter: "fixed_expense" })).toEqual([]);
+  });
+  it("resetar recomeça com conta e categorias padrão no mesmo espaço", () => {
+    const f = freshSnapshot(snap.workspace, () => Math.random().toString(36).slice(2));
+    expect(f.workspace.id).toBe(snap.workspace.id);
+    expect(f.transactions).toEqual([]);
+    expect(f.accounts).toHaveLength(1);
+    expect(f.categories.every((c) => c.workspaceId === snap.workspace.id)).toBe(true);
+  });
+  it("lixeira expira em 30 dias", () => {
+    const trash = [tx({ id: "velho", deletedAt: "2026-09-01T00:00:00Z" }), tx({ id: "novo", deletedAt: "2026-10-20T00:00:00Z" })];
+    expect(expiredTrash(trash, new Date("2026-10-21T12:00:00Z"))).toEqual(["velho"]);
   });
 });

@@ -225,7 +225,7 @@ export default function Extrato() {
       </Card>
 
       {tool === "trash" && <TrashModal snap={snap} onClose={() => setTool(null)} onDone={toast} />}
-      {tool === "bulk" && <BulkDeleteModal snap={snap} month={month} onClose={() => setTool(null)}
+      {tool === "bulk" && <BulkDeleteModal snap={snap} onClose={() => setTool(null)}
         onDone={(msg, undo) => toast(msg, undo ? { label: "Desfazer", run: undo } : undefined)} />}
     </div>
   );

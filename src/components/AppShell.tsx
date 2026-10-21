@@ -11,6 +11,7 @@ import {
 import { addMonths, monthLabel, monthOf, today } from "@/lib/dates";
 import { defaultCategoryChanges } from "@/lib/categories";
 import { repo, useLoadError, useSession, useSnapshot } from "@/lib/data";
+import { expiredTrash } from "@/lib/data/repo";
 import { TransactionModal } from "./TransactionModal";
 import { Button, Skeleton } from "./ui";
 
@@ -129,6 +130,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       } catch { /* tenta de novo na próxima vez que o app abrir */ }
       categoriesRunning.delete(key);
     })();
+  }, [workspaceId]);
+
+  // A lixeira guarda por 30 dias: ao abrir o app, apaga de vez o que passou disso.
+  useEffect(() => {
+    if (!workspaceId) return;
+    const old = expiredTrash(repo.snapshot()?.trash ?? [], new Date());
+    if (old.length) void repo.purgeTransactions(old).catch(() => undefined);
   }, [workspaceId]);
 
   useEffect(() => {

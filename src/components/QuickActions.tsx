@@ -1,16 +1,18 @@
 "use client";
 
 import { useRef, useState, type DragEvent } from "react";
-import { ArrowDownCircle, ArrowUpCircle, Download, FileSpreadsheet, FileText, RotateCcw, Trash2, Upload, User } from "lucide-react";
+import {
+  ArrowDownCircle, ArrowUpCircle, CalendarCheck, Download, FileSpreadsheet, FileText, RotateCcw, Search, Trash2, TrendingDown, TriangleAlert, Upload, User,
+} from "lucide-react";
 import { repo } from "@/lib/data";
-import { monthLabel } from "@/lib/dates";
+import { bulkPayments, bulkTransactions, defaultBulkRange, type BulkPayFilter, type BulkRegFilter, type BulkTxFilter } from "@/lib/bulk";
+import { today } from "@/lib/dates";
 import { formatBRL } from "@/lib/money";
 import {
   dataSheet, exportFileName, filterForExport, periodLabels, periodTitle, reportHtml, reportSheets, type KindFilter, type Period,
 } from "@/lib/report";
 import { parseCsv, parseOfx, rowsFromTable, type StatementRow } from "@/lib/statement";
 import { transactionsCsv } from "@/lib/csv";
-import { monthTransactions } from "@/lib/summary";
 import type { Snapshot, Transaction } from "@/lib/types";
 import { readXlsx, writeXlsx } from "@/lib/xlsx";
 import { Dialog } from "./Dialog";
@@ -317,7 +319,12 @@ export function TrashModal({ snap, onClose, onDone }: { snap: Snapshot; onClose:
   }
 
   return (
-    <Dialog onClose={onClose} title={<h2 className="flex items-center gap-2 text-lg font-semibold"><Trash2 aria-hidden className="size-5 text-text-muted" />Lixeira</h2>}>
+    <Dialog onClose={onClose} title={
+      <div>
+        <h2 className="flex items-center gap-2 text-lg font-semibold"><Trash2 aria-hidden className="size-5" />Lixeira de Transações</h2>
+        <p className="mt-1 text-sm text-text-muted">Transações excluídas nos últimos 30 dias. Depois disso, elas são apagadas automaticamente.</p>
+      </div>
+    }>
       {items.length ? (
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between text-sm">
@@ -336,56 +343,178 @@ export function TrashModal({ snap, onClose, onDone }: { snap: Snapshot; onClose:
           </div>
         </div>
       ) : (
-        <div className="flex flex-col items-center gap-2 py-10 text-center text-text-muted">
-          <Trash2 aria-hidden className="size-9" />
-          <p>A lixeira está vazia. Lançamentos excluídos aparecem aqui e podem ser restaurados.</p>
+        <div className="flex flex-col items-center gap-3 py-12 text-center text-text-muted">
+          <Trash2 aria-hidden className="size-12 opacity-60" />
+          <p>A lixeira está vazia</p>
         </div>
       )}
     </Dialog>
   );
 }
 
-/* ---------------------------------- Apagar vários ---------------------------------- */
+/* ---------------------------------- Excluir em massa ---------------------------------- */
 
-export function BulkDeleteModal({ snap, month, onClose, onDone }:
-  { snap: Snapshot; month: string; onClose: () => void; onDone: (msg: string, undo?: () => void) => void }) {
-  const [kind, setKind] = useState<KindFilter>("all");
-  const items = monthTransactions(snap, month)
-    .filter((t) => kind === "all" || t.kind === kind)
-    .sort((a, b) => b.occurredOn.localeCompare(a.occurredOn));
+type BulkTab = "transacoes" | "pagamentos" | "cadastros";
+
+const tabBtn = "flex h-10 items-center justify-center gap-1.5 rounded-md text-sm font-semibold text-text-muted aria-selected:bg-surface-raised aria-selected:text-text aria-selected:shadow-card";
+
+export function BulkDeleteModal({ snap, onClose, onDone }:
+  { snap: Snapshot; onClose: () => void; onDone: (msg: string, undo?: () => void) => void }) {
+  const [tab, setTab] = useState<BulkTab>("transacoes");
+  const [range, setRange] = useState(() => defaultBulkRange(today()));
+  const [search, setSearch] = useState("");
+  const [txFilter, setTxFilter] = useState<BulkTxFilter>("all");
+  const [payFilter, setPayFilter] = useState<BulkPayFilter>("all");
+  const [regFilter, setRegFilter] = useState<BulkRegFilter>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
+  const base = { ...range, search };
+  const items = tab === "transacoes" ? bulkTransactions(snap, { ...base, filter: txFilter })
+    : tab === "pagamentos" ? bulkPayments(snap, { ...base, filter: payFilter }) : [];
   const ids = [...selected].filter((id) => items.some((t) => t.id === id));
 
+  function switchTab(next: BulkTab) { setTab(next); setSelected(new Set()); }
+
   async function run() {
-    if (!confirm(`Mover ${ids.length} lançamentos para a lixeira?`)) return;
+    if (!confirm(`Excluir ${ids.length} ${ids.length === 1 ? "registro" : "registros"}? Eles vão para a lixeira.`)) return;
     setBusy(true);
     try {
       await repo.trashTransactions(ids);
-      onDone(`${ids.length} lançamentos movidos para a lixeira`, () => void repo.restoreTransactions(ids));
+      onDone(`${ids.length} ${ids.length === 1 ? "registro movido" : "registros movidos"} para a lixeira`, () => void repo.restoreTransactions(ids));
       onClose();
     } finally { setBusy(false); }
   }
 
+  const empty = tab === "transacoes"
+    ? { icon: Trash2, text: "Nenhuma transação encontrada no período" }
+    : tab === "pagamentos" ? { icon: CalendarCheck, text: "Nenhum pagamento fixo encontrado no período" }
+    : { icon: FileText, text: "Nenhum cadastro ativo encontrado" };
+
   return (
-    <Dialog onClose={onClose} title={<h2 className="flex items-center gap-2 text-lg font-semibold"><Trash2 aria-hidden className="size-5 text-danger" />Apagar lançamentos de {monthLabel(month)}</h2>}>
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-          <div className="flex gap-4">
-            {([["all", "Todos"], ["income", "Receitas"], ["expense", "Despesas"]] as const).map(([v, l]) => (
-              <label key={v} className="flex items-center gap-2"><input type="radio" name="bulk-kind" className={radio} checked={kind === v} onChange={() => setKind(v)} />{l}</label>
+    <>
+      <Dialog wide onClose={onClose} title={<h2 className="flex items-center gap-2 text-lg font-semibold"><Trash2 aria-hidden className="size-5 text-danger" />Excluir Registros em Massa</h2>}>
+        <div className="flex flex-col gap-4">
+          <div role="tablist" aria-label="O que excluir" className="grid grid-cols-3 gap-1 rounded-md bg-surface p-1">
+            {([["transacoes", "Transações", TrendingDown], ["pagamentos", "Pagamentos", CalendarCheck], ["cadastros", "Cadastros", FileText]] as const).map(([v, l, Icon]) => (
+              <button key={v} type="button" role="tab" aria-selected={tab === v} onClick={() => switchTab(v)} className={tabBtn}>
+                <Icon aria-hidden className="size-4" />{l}
+              </button>
             ))}
           </div>
-          <button type="button" className="font-semibold text-accent" onClick={() => setSelected(ids.length === items.length ? new Set() : new Set(items.map((t) => t.id)))}>
-            {ids.length === items.length && items.length ? "Limpar" : "Marcar todos"}
-          </button>
+
+          {tab !== "cadastros" && (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Data Inicial" htmlFor="bulk-from">
+                <input id="bulk-from" type="date" className={inputClass} value={range.from} max={range.to || undefined}
+                  onChange={(e) => setRange({ ...range, from: e.target.value })} />
+              </Field>
+              <Field label="Data Final" htmlFor="bulk-to">
+                <input id="bulk-to" type="date" className={inputClass} value={range.to} min={range.from || undefined}
+                  onChange={(e) => setRange({ ...range, to: e.target.value })} />
+              </Field>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="relative flex-1">
+              <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
+              <input type="search" aria-label="Buscar por descrição" placeholder="Buscar por descrição..." className={`${inputClass} pl-9`}
+                value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+            {tab === "transacoes" && (
+              <select aria-label="Tipo" className={`${inputClass} sm:w-48`} value={txFilter} onChange={(e) => setTxFilter(e.target.value as BulkTxFilter)}>
+                <option value="all">Todas</option><option value="income">Receitas</option>
+                <option value="expense">Despesas</option><option value="card">Cartão de Crédito</option>
+              </select>
+            )}
+            {tab === "pagamentos" && (
+              <select aria-label="Tipo" className={`${inputClass} sm:w-48`} value={payFilter} onChange={(e) => setPayFilter(e.target.value as BulkPayFilter)}>
+                <option value="all">Todos</option><option value="fixed_expense">Gastos Fixos</option>
+                <option value="fixed_income">Receitas Fixas</option><option value="card_payment">Pagto. Faturas</option>
+              </select>
+            )}
+            {tab === "cadastros" && (
+              <select aria-label="Tipo" className={`${inputClass} sm:w-48`} value={regFilter} onChange={(e) => setRegFilter(e.target.value as BulkRegFilter)}>
+                <option value="all">Todos</option><option value="fixed_expense">Gastos Fixos</option>
+                <option value="fixed_income">Receitas Fixas</option><option value="debt">Dívidas</option>
+              </select>
+            )}
+          </div>
+
+          <div className="flex items-center gap-4 border-b border-border pb-3 text-sm">
+            <button type="button" className="font-semibold disabled:opacity-50" disabled={!items.length} onClick={() => setSelected(new Set(items.map((t) => t.id)))}>
+              Selecionar todas ({items.length})
+            </button>
+            <button type="button" className="font-semibold text-text-muted disabled:opacity-50" disabled={!ids.length} onClick={() => setSelected(new Set())}>Limpar seleção</button>
+            <span className="ml-auto rounded-pill bg-surface px-2.5 py-1 text-xs font-semibold">{ids.length} {ids.length === 1 ? "selecionada" : "selecionadas"}</span>
+          </div>
+
+          {items.length ? <SimpleRows snap={snap} items={items} selected={selected} setSelected={setSelected} /> : (
+            <div className="flex flex-col items-center gap-3 py-10 text-center text-text-muted">
+              <empty.icon aria-hidden className="size-12 opacity-60" />
+              <p>{empty.text}</p>
+            </div>
+          )}
+
+          <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4">
+            <Button type="button" variant="secondary" className="!text-danger" onClick={() => setResetting(true)}><RotateCcw aria-hidden className="size-4" />Resetar tudo</Button>
+            <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
+            <Button type="button" variant="danger" disabled={!ids.length} loading={busy} onClick={run}>
+              <Trash2 aria-hidden className="size-4" />Excluir {ids.length} {ids.length === 1 ? "registro" : "registros"}
+            </Button>
+          </div>
         </div>
-        {items.length ? <SimpleRows snap={snap} items={items} selected={selected} setSelected={setSelected} />
-          : <p className="py-8 text-center text-text-muted">Nenhum lançamento neste mês.</p>}
-        <p className="text-xs text-text-muted">Os lançamentos vão para a lixeira, de onde podem ser restaurados.</p>
+      </Dialog>
+      {resetting && <ResetDialog onClose={() => setResetting(false)} onDone={(msg) => { onDone(msg); onClose(); }} />}
+    </>
+  );
+}
+
+/* ---------------------------------- Resetar tudo ---------------------------------- */
+
+export function ResetDialog({ onClose, onDone }: { onClose: () => void; onDone: (msg: string) => void }) {
+  const [word, setWord] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const ok = word.trim() === "RESETAR";
+
+  async function run() {
+    setBusy(true);
+    setError("");
+    try {
+      await repo.resetAll();
+      try { localStorage.removeItem("sobra:titular-oculto"); } catch { /* sem armazenamento local */ }
+      onDone("Painel pessoal resetado");
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível resetar.");
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <Dialog onClose={onClose} title={<h2 className="flex items-center gap-2 text-lg font-semibold text-danger"><TriangleAlert aria-hidden className="size-5" />Resetar todo o painel pessoal?</h2>}>
+      <div className="flex flex-col gap-4 text-sm">
+        <div>
+          <p>Esta ação <b>apaga permanentemente</b>:</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            <li>Todas as transações (incluindo a lixeira)</li>
+            <li>Todos os cartões e suas faturas</li>
+            <li>Todas as contas bancárias</li>
+            <li>Todos os gastos fixos, receitas fixas e seus pagamentos</li>
+            <li>Todas as dívidas, metas e categorias que você criou</li>
+            <li>Pessoas cadastradas</li>
+          </ul>
+        </div>
+        <p>Seu login e seu perfil <b>não</b> serão afetados. O painel recomeça com uma conta principal e as categorias padrão.</p>
+        <Field label="Para confirmar, digite RESETAR abaixo:" htmlFor="reset-word">
+          <input id="reset-word" autoFocus autoComplete="off" className={inputClass} value={word} onChange={(e) => setWord(e.target.value)} placeholder="RESETAR" />
+        </Field>
+        {error && <p role="alert" className="text-danger">{error}</p>}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button type="button" variant="danger" disabled={!ids.length} loading={busy} onClick={run}>Apagar {ids.length || ""}</Button>
+          <Button type="button" variant="danger" disabled={!ok} loading={busy} onClick={run}><RotateCcw aria-hidden className="size-4" />Sim, apagar tudo</Button>
         </div>
       </div>
     </Dialog>
