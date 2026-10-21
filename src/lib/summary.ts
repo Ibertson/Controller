@@ -202,3 +202,38 @@ export function forecast(s: Snapshot, fromMonth: string, n: number): ForecastMon
     return { month, incomeCents, expenseCents, balanceCents: balance };
   });
 }
+
+/** Saldo total no fim de cada um dos `n` meses que terminam em `lastMonth` (movimentos pagos, pela data). */
+export function balanceSeries(s: Snapshot, lastMonth: string, n: number): { month: string; balanceCents: number }[] {
+  const months = monthSeries(s, lastMonth, n).map((p) => p.month);
+  const ends = months.map((m) => new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 1)).toISOString().slice(0, 10));
+  const ids = new Set(s.accounts.map((a) => a.id));
+  const initial = s.accounts.reduce((a, x) => a + x.initialBalanceCents, 0);
+  return months.map((month, i) => {
+    let b = initial;
+    for (const t of s.transactions) {
+      if (t.occurredOn >= ends[i]) continue;
+      b += totalDelta(t, ids);
+    }
+    return { month, balanceCents: b };
+  });
+}
+
+/** Quanto um lançamento pago muda o saldo somado das contas (transferência entre contas não muda). */
+function totalDelta(t: Transaction, ids: Set<string>): number {
+  if (!t.isPaid) return 0;
+  const inAcc = (id: string | null) => !!id && ids.has(id);
+  if (t.kind === "income" && inAcc(t.accountId)) return t.amountCents;
+  if ((t.kind === "expense" || t.kind === "card_payment") && inAcc(t.accountId)) return -t.amountCents;
+  if (t.kind === "transfer") return (inAcc(t.toAccountId) ? t.amountCents : 0) - (inAcc(t.accountId) ? t.amountCents : 0);
+  return 0;
+}
+
+/** Total do mês por pessoa (despesas ou receitas). Lançamento sem pessoa fica com id "" (o titular). */
+export function totalsByPerson(s: Snapshot, month: string, kind: "expense" | "income"): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const t of monthTransactions(s, month)) {
+    if (t.kind === kind) out.set(t.personId ?? "", (out.get(t.personId ?? "") ?? 0) + t.amountCents);
+  }
+  return out;
+}

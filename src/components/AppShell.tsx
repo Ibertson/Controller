@@ -16,9 +16,10 @@ import { Button, Skeleton } from "./ui";
 interface ShellState {
   month: string;
   setMonth: (m: string) => void;
-  openNew: (kind?: "expense" | "income") => void;
+  openNew: (kind?: NewKind) => void;
   toast: (msg: string, action?: { label: string; run: () => void }) => void;
 }
+type NewKind = "expense" | "income" | "transfer";
 const ShellCtx = createContext<ShellState | null>(null);
 export function useShell() {
   const c = useContext(ShellCtx);
@@ -105,7 +106,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const path = usePathname();
   const [chosenMonth, setMonth] = useState<string | null>(null);
-  const [modal, setModal] = useState<false | "expense" | "income">(false);
+  const [modal, setModal] = useState<false | NewKind>(false);
   const [drawer, setDrawer] = useState(false);
   const [toastState, setToast] = useState<{ msg: string; action?: { label: string; run: () => void } } | null>(null);
 
@@ -130,7 +131,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [toastState]);
 
   const toast = useCallback((msg: string, action?: { label: string; run: () => void }) => setToast({ msg, action }), []);
-  const openNew = useCallback((kind: "expense" | "income" = "expense") => setModal(kind), []);
+  const openNew = useCallback((kind: NewKind = "expense") => setModal(kind), []);
 
   if (!session && loadError) {
     return (
@@ -155,7 +156,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   // Só calcula "hoje" no navegador (no servidor a sessão ainda é undefined e paramos acima).
   const month = chosenMonth ?? monthOf(today());
   // No painel o mês é escolhido nos botões de mês da própria página.
-  const showMonth = ["/transacoes", "/extrato", "/categorias", "/fechamento"].includes(path);
+  const showMonth = ["/extrato", "/categorias", "/fechamento"].includes(path);
 
   return (
     <ShellCtx.Provider value={{ month, setMonth, openNew, toast }}>
