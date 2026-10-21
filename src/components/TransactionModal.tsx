@@ -101,7 +101,7 @@ export function TransactionModal({ initialKind = "expense", onClose, onSaved }:
       onClose();
       const first = rows[0];
       onSaved(rows.length > 1 ? `${rows.length} parcelas salvas` : "Lançamento salvo",
-        first ? () => repo.deleteTransaction(first.id, "all") : undefined);
+        first ? () => repo.purgeTransactions(rows.map((r) => r.id)) : undefined);
     } catch (err) {
       setErrors({ form: err instanceof ValidationError || err instanceof Error ? err.message : "Não deu para salvar. Tente de novo." });
       setSaving(false);

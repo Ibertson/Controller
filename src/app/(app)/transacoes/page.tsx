@@ -3,17 +3,17 @@
 import Link from "next/link";
 import { useState } from "react";
 import {
-  ArrowLeftRight, ArrowDown, ArrowUp, CreditCard, Download, Eye, Filter, Landmark, ListOrdered, Pencil, Plus, Trash2, TrendingUp, Upload, Users, Wallet,
+  ArrowDown, ArrowUp, CreditCard, Download, Eye, Filter, Landmark, ListOrdered, Pencil, Plus, Trash2, TrendingUp, Upload, Eraser, Users, Wallet,
 } from "lucide-react";
 import { useShell } from "@/components/AppShell";
 import { LineChart } from "@/components/charts";
 import { MonthPicker } from "@/components/MonthPicker";
 import { PersonEdit, PersonView, initials } from "@/components/PersonModals";
+import { BulkDeleteModal, ExportModal, ImportStatementModal, TrashModal } from "@/components/QuickActions";
 import { TransactionList } from "@/components/TransactionList";
 import { Card, EmptyState, Skeleton, inputClass } from "@/components/ui";
 import { repo, useSession, useSnapshot } from "@/lib/data";
 import { monthOf, today } from "@/lib/dates";
-import { transactionsCsv } from "@/lib/csv";
 import { formatBRL } from "@/lib/money";
 import { accountBalances, balanceSeries, monthTotals, monthTransactions, totalBalance, totalsByPerson } from "@/lib/summary";
 import type { AccountKind, Person } from "@/lib/types";
@@ -44,6 +44,7 @@ export default function Transacoes() {
     setSelfHiddenState(v);
     try { if (v) localStorage.setItem(SELF_HIDDEN_KEY, "1"); else localStorage.removeItem(SELF_HIDDEN_KEY); } catch { /* sem armazenamento: vale só nesta visita */ }
   };
+  const [tool, setTool] = useState<null | "import" | "export" | "trash" | "bulk">(null);
   const [editing, setEditing] = useState<Person | { id: ""; name: string } | null>(null);
 
   if (!snap) return <div className="flex flex-col gap-4">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-28" />)}</div>;
@@ -88,16 +89,6 @@ export default function Transacoes() {
     { label: "Outros", list: accounts.filter((a) => a.kind === "wallet" || a.kind === "other") },
   ].filter((g) => g.list.length);
 
-  function exportCsv() {
-    const csv = transactionsCsv(snap!, items);
-    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `transacoes-${month.slice(0, 7)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast(`${items.length} lançamentos exportados`);
-  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -162,19 +153,21 @@ export default function Transacoes() {
             <button type="button" onClick={() => openNew("expense")} className="flex flex-col items-center gap-1.5 rounded-md bg-danger-soft p-3 text-sm font-semibold text-expense hover:opacity-90">
               <span className="grid size-10 place-items-center rounded-pill bg-expense text-on-accent"><ArrowDown aria-hidden className="size-5" /></span>Despesa
             </button>
-            <button type="button" onClick={() => openNew("transfer")} className="flex flex-col items-center gap-1.5 rounded-md bg-surface p-3 text-sm font-semibold text-text hover:opacity-90">
-              <span className="grid size-10 place-items-center rounded-pill bg-chart-6 text-on-accent"><ArrowLeftRight aria-hidden className="size-5" /></span>Transferir
+            <button type="button" onClick={() => setTool("import")} className="flex flex-col items-center gap-1.5 rounded-md bg-surface p-3 text-sm font-semibold text-text hover:opacity-90">
+              <span className="grid size-10 place-items-center rounded-pill bg-chart-6 text-on-accent"><Upload aria-hidden className="size-5" /></span>Importar extrato
             </button>
           </div>
           <div className="mt-3 flex flex-wrap justify-center gap-2">
-            <button type="button" onClick={exportCsv} disabled={!items.length}
-              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border px-3 text-sm font-semibold text-accent hover:bg-surface disabled:opacity-50">
-              <Download aria-hidden className="size-4" />Exportar (Excel)
-            </button>
-            <button type="button" onClick={() => toast("Importar extrato do banco chega numa próxima etapa")}
-              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border px-3 text-sm font-semibold text-text-muted hover:bg-surface">
-              <Upload aria-hidden className="size-4" />Importar extrato
-            </button>
+            {[
+              { key: "trash" as const, label: `Lixeira${snap.trash?.length ? ` (${snap.trash.length})` : ""}`, icon: Trash2, tone: "text-text-muted" },
+              { key: "bulk" as const, label: "Apagar", icon: Eraser, tone: "text-expense" },
+              { key: "export" as const, label: "Exportar", icon: Download, tone: "text-accent" },
+            ].map((b) => (
+              <button key={b.key} type="button" onClick={() => setTool(b.key)}
+                className={`inline-flex h-9 items-center gap-1.5 rounded-pill border border-border bg-surface-raised px-3.5 text-sm font-semibold hover:bg-surface ${b.tone}`}>
+                <b.icon aria-hidden className="size-4" />{b.label}
+              </button>
+            ))}
           </div>
         </Card>
       </div>
@@ -273,6 +266,11 @@ export default function Transacoes() {
       </section>
 
       {viewing && <PersonView snap={snap} person={viewing} month={month} side={side} onClose={() => setViewing(null)} onDeleted={toast} />}
+      {tool === "import" && <ImportStatementModal snap={snap} onClose={() => setTool(null)} onDone={toast} />}
+      {tool === "export" && <ExportModal snap={snap} month={month} selfName={session?.name ?? "Você"} onClose={() => setTool(null)} onDone={toast} />}
+      {tool === "trash" && <TrashModal snap={snap} onClose={() => setTool(null)} onDone={toast} />}
+      {tool === "bulk" && <BulkDeleteModal snap={snap} month={month} onClose={() => setTool(null)}
+        onDone={(msg, undo) => toast(msg, undo ? { label: "Desfazer", run: undo } : undefined)} />}
       {editing && <PersonEdit person={editing} onClose={() => setEditing(null)} onSaved={toast} />}
     </div>
   );

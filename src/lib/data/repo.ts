@@ -25,11 +25,43 @@ export interface Repo {
   subscribe(listener: () => void): () => void;
 
   createTransaction(input: NewTransactionInput): Promise<Transaction[]>;
+  /** Manda para a lixeira (esta parcela, as próximas ou todas). */
   deleteTransaction(id: string, scope: "one" | "future" | "all"): Promise<void>;
+  /** Manda vários para a lixeira de uma vez. */
+  trashTransactions(ids: string[]): Promise<void>;
+  /** Tira da lixeira. */
+  restoreTransactions(ids: string[]): Promise<void>;
+  /** Apaga de vez (só da lixeira ou para desfazer um lançamento recém-criado). */
+  purgeTransactions(ids: string[]): Promise<void>;
   markPaid(id: string, accountId?: string): Promise<void>;
 
   upsertAccount(a: Omit<Account, "workspaceId" | "id"> & { id?: string }): Promise<Account>;
   upsertCard(c: Omit<Card, "workspaceId" | "id"> & { id?: string }): Promise<Card>;
   upsertCategory(c: Omit<Category, "workspaceId" | "id"> & { id?: string }): Promise<Category>;
   upsertPerson(p: Omit<Person, "workspaceId" | "id"> & { id?: string }): Promise<Person>;
+}
+
+/** Ids atingidos ao excluir um lançamento com o escopo pedido (parcelas). */
+export function scopeIds(list: Transaction[], id: string, scope: "one" | "future" | "all"): string[] {
+  const t = list.find((x) => x.id === id);
+  if (!t) return [];
+  return list.filter((x) => x.id === id ||
+    (scope !== "one" && !!t.installmentGroupId && x.installmentGroupId === t.installmentGroupId &&
+      (scope === "all" || (x.installmentNumber ?? 0) >= (t.installmentNumber ?? 0)))).map((x) => x.id);
+}
+
+/** Move entre ativos e lixeira no snapshot em memória. */
+export function moveToTrash(d: Snapshot, ids: string[], when: string): Snapshot {
+  const set = new Set(ids);
+  const moved = d.transactions.filter((t) => set.has(t.id)).map((t) => ({ ...t, deletedAt: when }));
+  return { ...d, transactions: d.transactions.filter((t) => !set.has(t.id)), trash: [...(d.trash ?? []), ...moved] };
+}
+export function moveFromTrash(d: Snapshot, ids: string[]): Snapshot {
+  const set = new Set(ids);
+  const back = (d.trash ?? []).filter((t) => set.has(t.id)).map((t) => ({ ...t, deletedAt: null }));
+  return { ...d, trash: (d.trash ?? []).filter((t) => !set.has(t.id)), transactions: [...d.transactions, ...back] };
+}
+export function dropForever(d: Snapshot, ids: string[]): Snapshot {
+  const set = new Set(ids);
+  return { ...d, transactions: d.transactions.filter((t) => !set.has(t.id)), trash: (d.trash ?? []).filter((t) => !set.has(t.id)) };
 }

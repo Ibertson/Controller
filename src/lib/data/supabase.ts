@@ -3,7 +3,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildTransactions } from "../transactions";
 import type { Account, Card, Category, NewTransactionInput, Person, Snapshot, Transaction } from "../types";
-import type { Repo, SignInResult } from "./repo";
+import { dropForever, moveFromTrash, moveToTrash, scopeIds, type Repo, type SignInResult } from "./repo";
 import { emptySnapshot } from "./seed";
 
 // Banco: supabase/migrations. As colunas são snake_case; aqui viram camelCase.
@@ -49,7 +49,7 @@ const toTransaction = (r: Row): Transaction => ({
   cardId: (r.card_id as string) ?? null, statementMonth: (r.statement_month as string) ?? null, personId: (r.person_id as string) ?? null,
   installmentGroupId: (r.installment_group_id as string) ?? null, installmentNumber: (r.installment_number as number) ?? null,
   installmentTotal: (r.installment_total as number) ?? null, isPaid: r.is_paid as boolean, dueOn: (r.due_on as string) ?? null,
-  source: r.source as Transaction["source"], createdAt: r.created_at as string,
+  source: r.source as Transaction["source"], createdAt: r.created_at as string, deletedAt: (r.deleted_at as string) ?? null,
 });
 const fromTransaction = (t: Transaction) => ({
   id: t.id, workspace_id: t.workspaceId, kind: t.kind, amount_cents: t.amountCents, occurred_on: t.occurredOn, description: t.description,
@@ -59,6 +59,13 @@ const fromTransaction = (t: Transaction) => ({
 });
 
 const newId = () => crypto.randomUUID();
+
+/** Listas de ids em pedaços, para o filtro "in" não estourar o tamanho da URL. */
+function chunks(ids: string[], size = 100): string[][] {
+  const out: string[][] = [];
+  for (let i = 0; i < ids.length; i += size) out.push(ids.slice(i, i + size));
+  return out;
+}
 
 function must<T>(res: { data: T; error: { message: string } | null }): NonNullable<T> {
   if (res.error) throw new Error(res.error.message);
@@ -136,7 +143,8 @@ export class SupabaseRepo implements Repo {
       cards: cards.map(toCard),
       categories: categories.map(toCategory),
       people: people.map(toPerson),
-      transactions: transactions.map(toTransaction),
+      transactions: transactions.map(toTransaction).filter((t) => !t.deletedAt),
+      trash: transactions.map(toTransaction).filter((t) => !!t.deletedAt),
     };
     this.emit();
   }
@@ -212,16 +220,23 @@ export class SupabaseRepo implements Repo {
   }
 
   async deleteTransaction(id: string, scope: "one" | "future" | "all") {
-    const t = this.data!.transactions.find((x) => x.id === id);
-    if (!t) return;
-    let q = this.db.from("transactions").delete();
-    if (scope === "one" || !t.installmentGroupId) q = q.eq("id", id);
-    else if (scope === "all") q = q.eq("installment_group_id", t.installmentGroupId);
-    else q = q.eq("installment_group_id", t.installmentGroupId).gte("installment_number", t.installmentNumber ?? 0);
-    must(await q);
-    const drop = (x: Transaction) => x.id === id || (scope !== "one" && !!t.installmentGroupId && x.installmentGroupId === t.installmentGroupId &&
-      (scope === "all" || (x.installmentNumber ?? 0) >= (t.installmentNumber ?? 0)));
-    this.set((d) => ({ ...d, transactions: d.transactions.filter((x) => !drop(x)) }));
+    await this.trashTransactions(scopeIds(this.data!.transactions, id, scope));
+  }
+  async trashTransactions(ids: string[]) {
+    if (!ids.length) return;
+    const when = new Date().toISOString();
+    for (const chunk of chunks(ids)) must(await this.db.from("transactions").update({ deleted_at: when }).in("id", chunk));
+    this.set((d) => moveToTrash(d, ids, when));
+  }
+  async restoreTransactions(ids: string[]) {
+    if (!ids.length) return;
+    for (const chunk of chunks(ids)) must(await this.db.from("transactions").update({ deleted_at: null }).in("id", chunk));
+    this.set((d) => moveFromTrash(d, ids));
+  }
+  async purgeTransactions(ids: string[]) {
+    if (!ids.length) return;
+    for (const chunk of chunks(ids)) must(await this.db.from("transactions").delete().in("id", chunk));
+    this.set((d) => dropForever(d, ids));
   }
 
   async markPaid(id: string, accountId?: string) {

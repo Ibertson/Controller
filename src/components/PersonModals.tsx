@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Receipt, X } from "lucide-react";
+import { useState, type FormEvent } from "react";
+import { Receipt } from "lucide-react";
+import { Dialog } from "./Dialog";
 import { repo } from "@/lib/data";
 import { formatBRL, parseBRL } from "@/lib/money";
 import { monthLabel } from "@/lib/dates";
@@ -11,37 +12,6 @@ import { TransactionList } from "./TransactionList";
 import { Button, Field, Input } from "./ui";
 
 export const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
-
-/** Janela simples: Esc fecha, Tab fica dentro. */
-function Dialog({ title, onClose, children }: { title: ReactNode; onClose: () => void; children: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.preventDefault(); onClose(); }
-      if (e.key === "Tab" && ref.current) {
-        const f = ref.current.querySelectorAll<HTMLElement>("button, input, select, [tabindex]:not([tabindex='-1'])");
-        const first = f[0], last = f[f.length - 1];
-        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center lg:items-center">
-      <button aria-label="Fechar" tabIndex={-1} className="absolute inset-0 bg-text/40" onClick={onClose} />
-      <div ref={ref} role="dialog" aria-modal="true" aria-labelledby="dlg-title"
-        className="relative flex max-h-dvh w-full flex-col overflow-y-auto rounded-t-lg bg-bg p-5 shadow-pop lg:w-[560px] lg:rounded-lg">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div id="dlg-title" className="min-w-0 flex-1">{title}</div>
-          <button type="button" onClick={onClose} aria-label="Fechar" className="rounded-sm p-2 hover:bg-surface"><X className="size-5" /></button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
 
 /** Lançamentos do mês de uma pessoa ("" = titular, lançamentos sem pessoa). */
 export function PersonView({ snap, person, month, side, onClose, onDeleted }:
