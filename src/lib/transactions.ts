@@ -49,7 +49,7 @@ export function buildTransactions(
     installmentTotal: groupId ? n : null,
     isPaid: input.cardId ? true : input.isPaid ?? true,
     dueOn: input.isPaid === false ? input.dueOn ?? input.occurredOn : null,
-    source: "app",
+    source: input.source ?? "app",
     createdAt: ctx.now,
   }));
 }

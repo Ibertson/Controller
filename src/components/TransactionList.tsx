@@ -21,12 +21,12 @@ export function TransactionList({ snap, items, onDeleted }: { snap: Snapshot; it
   async function remove(t: Transaction) {
     let scope: "one" | "future" | "all" = "one";
     if (t.installmentGroupId) {
-      const answer = prompt("Excluir: 1 = só esta parcela, 2 = esta e as próximas, 3 = todas", "1");
+      const answer = prompt("Mover para a lixeira: 1 = só esta parcela, 2 = esta e as próximas, 3 = todas", "1");
       if (!answer) return;
       scope = answer === "3" ? "all" : answer === "2" ? "future" : "one";
-    } else if (!confirm("Excluir este lançamento?")) return;
+    } else if (!confirm("Excluir este lançamento? Ele vai para a lixeira.")) return;
     await repo.deleteTransaction(t.id, scope);
-    onDeleted?.("Lançamento excluído");
+    onDeleted?.("Lançamento movido para a lixeira");
   }
 
   return (

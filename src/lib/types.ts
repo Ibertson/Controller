@@ -36,6 +36,8 @@ export interface Transaction {
   isPaid: boolean; dueOn: string | null;
   source: "app" | "whatsapp_text" | "whatsapp_audio" | "whatsapp_photo" | "import";
   createdAt: string;
+  /** Na lixeira desde esta data; ausente = ativo. */
+  deletedAt?: string | null;
 }
 
 /** Entrada do formulário "Novo lançamento". Parcelado gera várias Transaction. */
@@ -54,6 +56,8 @@ export interface NewTransactionInput {
   isPaid?: boolean;
   dueOn?: string | null;
   idempotencyKey?: string;
+  /** De onde veio; padrão "app". */
+  source?: Transaction["source"];
 }
 
 export interface Snapshot {
@@ -63,4 +67,6 @@ export interface Snapshot {
   categories: Category[];
   people: Person[];
   transactions: Transaction[];
+  /** Lançamentos excluídos, que podem ser restaurados (fora de todos os totais). */
+  trash?: Transaction[];
 }

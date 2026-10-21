@@ -1,8 +1,8 @@
 "use client";
 
 import { buildTransactions } from "../transactions";
-import type { Snapshot, Transaction } from "../types";
-import type { Repo, SignInResult } from "./repo";
+import type { Snapshot } from "../types";
+import { dropForever, moveFromTrash, moveToTrash, scopeIds, type Repo, type SignInResult } from "./repo";
 import { emptySnapshot } from "./seed";
 
 const KEY = "sobra:v1";
@@ -73,16 +73,11 @@ export class LocalRepo implements Repo {
   }
 
   async deleteTransaction(id: string, scope: "one" | "future" | "all") {
-    this.update((d) => {
-      const t = d.transactions.find((x) => x.id === id);
-      if (!t) return d;
-      const drop = (x: Transaction) =>
-        x.id === id ||
-        (scope !== "one" && !!t.installmentGroupId && x.installmentGroupId === t.installmentGroupId &&
-          (scope === "all" || (x.installmentNumber ?? 0) >= (t.installmentNumber ?? 0)));
-      return { ...d, transactions: d.transactions.filter((x) => !drop(x)) };
-    });
+    await this.trashTransactions(scopeIds(this.data().transactions, id, scope));
   }
+  async trashTransactions(ids: string[]) { this.update((d) => moveToTrash(d, ids, new Date().toISOString())); }
+  async restoreTransactions(ids: string[]) { this.update((d) => moveFromTrash(d, ids)); }
+  async purgeTransactions(ids: string[]) { this.update((d) => dropForever(d, ids)); }
 
   async markPaid(id: string, accountId?: string) {
     this.update((d) => ({
