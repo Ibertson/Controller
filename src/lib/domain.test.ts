@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { formatBRL, formatSigned, parseBRL, splitInstallments } from "./money";
 import { addMonthsToDay, dayLabel, monthLabel, statementMonthFor, today } from "./dates";
 import { buildTransactions, ValidationError } from "./transactions";
-import { accountBalances, categoryUsage, monthTotals, projectedLeftover, upcomingBills } from "./summary";
+import {
+  accountBalances, categoryUsage, incomeByAccount, monthBreakdown, monthSeries, monthTotals, projectedLeftover, totalsByCategory, upcomingBills,
+} from "./summary";
 import type { Card, Snapshot } from "./types";
 
 describe("money", () => {
@@ -116,5 +118,22 @@ describe("resumos", () => {
   it("contas a vencer", () => {
     expect(upcomingBills(snap, "2026-10-19").map((t) => t.description)).toEqual(["Luz"]);
     expect(upcomingBills(snap, "2026-10-10")).toEqual([]);
+  });
+  it("painel separa conta, cartão e pendentes", () => {
+    expect(monthBreakdown(snap, "2026-10-01")).toEqual({
+      incomeCents: 300000, cashExpenseCents: 2500 + 18000, cardCents: 9000, cardOpenCents: 9000, pendingCents: 18000, pendingCount: 1,
+    });
+  });
+  it("série dos meses termina no mês escolhido", () => {
+    const s6 = monthSeries(snap, "2026-11-01", 3);
+    expect(s6.map((p) => p.month)).toEqual(["2026-09-01", "2026-10-01", "2026-11-01"]);
+    expect(s6[1]).toMatchObject({ incomeCents: 300000, expenseCents: 29500 });
+    expect(s6[0].expenseCents).toBe(0);
+  });
+  it("totais por categoria e por conta", () => {
+    expect(totalsByCategory(snap, "2026-10-01", "expense")).toEqual([
+      { id: "outros", label: "Outros", cents: 18000 }, { id: "k1", label: "Mercado", cents: 11500 },
+    ]);
+    expect(incomeByAccount(snap, "2026-10-01")).toEqual([{ id: "a1", label: "Banco", cents: 300000 }]);
   });
 });

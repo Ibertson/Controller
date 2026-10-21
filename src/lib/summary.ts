@@ -74,3 +74,73 @@ export function upcomingBills(s: Snapshot, todayStr: string, days = 3): Transact
     .sort((a, b) => a.dueOn!.localeCompare(b.dueOn!));
 }
 
+
+export interface MonthBreakdown {
+  incomeCents: number;
+  /** Despesas pagas em conta ou dinheiro (fora do cartão). */
+  cashExpenseCents: number;
+  /** Compras no cartão que caem na fatura deste mês. */
+  cardCents: number;
+  /** Parte da fatura deste mês que ainda não foi paga. */
+  cardOpenCents: number;
+  /** Contas a pagar do mês ainda não pagas. */
+  pendingCents: number;
+  pendingCount: number;
+}
+
+export function monthBreakdown(s: Snapshot, month: string): MonthBreakdown {
+  const r: MonthBreakdown = { incomeCents: 0, cashExpenseCents: 0, cardCents: 0, cardOpenCents: 0, pendingCents: 0, pendingCount: 0 };
+  for (const t of monthTransactions(s, month)) {
+    if (t.kind === "income") r.incomeCents += t.amountCents;
+    if (t.kind !== "expense") continue;
+    if (t.cardId) r.cardCents += t.amountCents;
+    else r.cashExpenseCents += t.amountCents;
+    if (!t.isPaid) { r.pendingCents += t.amountCents; r.pendingCount++; }
+  }
+  const paid = s.transactions.filter((t) => t.kind === "card_payment" && t.statementMonth === month).reduce((a, t) => a + t.amountCents, 0);
+  r.cardOpenCents = Math.max(0, r.cardCents - paid);
+  return r;
+}
+
+export interface MonthPoint { month: string; incomeCents: number; expenseCents: number; }
+
+/** Receitas e despesas dos `n` meses que terminam em `lastMonth`, do mais antigo ao mais novo. */
+export function monthSeries(s: Snapshot, lastMonth: string, n: number): MonthPoint[] {
+  const [y, m] = lastMonth.split("-").map(Number);
+  const months = Array.from({ length: n }, (_, i) => {
+    const d = new Date(Date.UTC(y, m - 1 - (n - 1 - i), 1));
+    return d.toISOString().slice(0, 10);
+  });
+  const idx = new Map(months.map((mm, i) => [mm, i]));
+  const out = months.map((month) => ({ month, incomeCents: 0, expenseCents: 0 }));
+  for (const t of s.transactions) {
+    const i = idx.get(budgetMonth(t));
+    if (i === undefined) continue;
+    if (t.kind === "income") out[i].incomeCents += t.amountCents;
+    if (t.kind === "expense") out[i].expenseCents += t.amountCents;
+  }
+  return out;
+}
+
+export interface Slice { id: string; label: string; cents: number; }
+
+/** Total do mês por categoria (despesas ou receitas), do maior para o menor. Sem categoria vira "Outros". */
+export function totalsByCategory(s: Snapshot, month: string, kind: "expense" | "income"): Slice[] {
+  const sums = new Map<string, number>();
+  for (const t of monthTransactions(s, month)) {
+    if (t.kind !== kind) continue;
+    const key = t.categoryId ?? "";
+    sums.set(key, (sums.get(key) ?? 0) + t.amountCents);
+  }
+  const name = (id: string) => s.categories.find((c) => c.id === id)?.name ?? "Outros";
+  return [...sums].map(([id, cents]) => ({ id: id || "outros", label: id ? name(id) : "Outros", cents })).sort((a, b) => b.cents - a.cents);
+}
+
+/** Receitas do mês por conta onde entraram. */
+export function incomeByAccount(s: Snapshot, month: string): Slice[] {
+  const sums = new Map<string, number>();
+  for (const t of monthTransactions(s, month)) {
+    if (t.kind === "income" && t.accountId) sums.set(t.accountId, (sums.get(t.accountId) ?? 0) + t.amountCents);
+  }
+  return [...sums].map(([id, cents]) => ({ id, label: s.accounts.find((a) => a.id === id)?.name ?? "Conta", cents })).sort((a, b) => b.cents - a.cents);
+}
