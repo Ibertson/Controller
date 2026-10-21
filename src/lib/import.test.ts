@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_EXPENSE, DEFAULT_INCOME, defaultCategoryChanges } from "./categories";
 import { dropForever, moveFromTrash, moveToTrash, scopeIds } from "./data/repo";
+import { emptySnapshot } from "./data/seed";
+import { emptyFilters, filterStatement, statementTotals, type ExtratoFilters } from "./extrato";
 import { filterForExport } from "./report";
 import { parseAmount, parseCsv, parseDate, parseOfx, rowsFromTable } from "./statement";
 import type { Snapshot, Transaction } from "./types";
@@ -88,5 +91,51 @@ describe("exportar", () => {
     expect(filterForExport(s, { period: "month", month: "2026-10-01", kind: "all", people: [] }).map((t) => t.id)).toEqual(["2", "3"]);
     expect(filterForExport(s, { period: "last3", month: "2026-10-01", kind: "expense", people: [] }).map((t) => t.id)).toEqual(["1", "3"]);
     expect(filterForExport(s, { period: "all", month: "2026-10-01", kind: "all", people: [""] }).map((t) => t.id)).toEqual(["1", "3"]);
+  });
+});
+
+describe("categorias padrão", () => {
+  const cat = (name: string, kind: "expense" | "income" = "expense") =>
+    ({ id: name, workspaceId: "w", name, icon: "", kind, monthlyLimitCents: null, archived: false });
+  it("renomeia as antigas e cria só as que faltam", () => {
+    const changes = defaultCategoryChanges([cat("Restaurantes"), cat("MERCADO"), cat("Extra", "income"), cat("Restaurante")]);
+    const names = changes.map((c) => c.name);
+    expect(changes.find((c) => c.id === "Extra")?.name).toBe("Freelance/Extra");
+    expect(changes.some((c) => c.id === "Restaurantes")).toBe(false); // "Restaurante" já existe
+    expect(names).not.toContain("Mercado");
+    expect(names).toContain("Pet");
+    expect(names.filter((n) => n === "Freelance/Extra")).toHaveLength(1);
+  });
+  it("não muda nada quando já está tudo lá", () => {
+    const all = [...DEFAULT_EXPENSE.map(([n]) => cat(n)), ...DEFAULT_INCOME.map(([n]) => cat(n, "income"))];
+    expect(defaultCategoryChanges(all)).toEqual([]);
+  });
+});
+
+describe("tela de extrato", () => {
+  const base = emptySnapshot(() => Math.random().toString(36).slice(2));
+  const acc = base.accounts[0].id;
+  const tx = (o: Partial<Transaction>): Transaction => ({
+    id: Math.random().toString(36).slice(2), workspaceId: "w", kind: "expense", amountCents: 1000, occurredOn: "2026-10-05", description: "x",
+    categoryId: null, accountId: acc, toAccountId: null, cardId: null, personId: null, isPaid: true, statementMonth: null,
+    installmentGroupId: null, installmentNumber: null, installmentTotal: null, createdAt: "2026-10-05T00:00:00Z", ...o,
+  } as Transaction);
+  const snap = { ...base, cards: [], transactions: [
+    tx({ description: "Mercado Bom Preço", amountCents: 5000 }),
+    tx({ kind: "income", description: "Salário", amountCents: 300000 }),
+    tx({ description: "Compra no cartão", cardId: "c1", accountId: null }),
+    tx({ kind: "transfer", toAccountId: "a2", description: "Para poupança" }),
+    tx({ occurredOn: "2026-11-02", description: "Fora do período" }),
+  ] };
+  const f = (o: Partial<ExtratoFilters>) => ({ ...emptyFilters("2026-10-01", "2026-10-31"), ...o });
+  it("filtra por período, aba, busca, tipo e valor", () => {
+    expect(filterStatement(snap, f({}))).toHaveLength(4);
+    expect(filterStatement(snap, f({ from: "", to: "" }))).toHaveLength(5);
+    expect(filterStatement(snap, f({ tab: "cartao" })).map((t) => t.description)).toEqual(["Compra no cartão"]);
+    expect(filterStatement(snap, f({ search: "mercado bom" }))).toHaveLength(1);
+    expect(filterStatement(snap, f({ kind: "transfer" })).map((t) => t.description)).toEqual(["Para poupança"]);
+    expect(filterStatement(snap, f({ minCents: 2000, maxCents: 10000 })).map((t) => t.description)).toEqual(["Mercado Bom Preço"]);
+    expect(filterStatement(snap, f({ sourceId: "a2" }))).toHaveLength(1);
+    expect(statementTotals(filterStatement(snap, f({})))).toEqual({ income: 300000, expense: 6000, net: 294000 });
   });
 });

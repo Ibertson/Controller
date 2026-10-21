@@ -17,11 +17,20 @@ import { Dialog } from "./Dialog";
 import { initials } from "./PersonModals";
 import { Button, Field, inputClass } from "./ui";
 
-function download(blob: Blob, name: string) {
+export function download(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Abre o relatório na janela de impressão, onde dá para escolher "Salvar como PDF". */
+export function printHtml(html: string) {
+  const frame = document.createElement("iframe");
+  frame.style.cssText = "position:fixed;width:0;height:0;border:0;right:0;bottom:0";
+  frame.srcdoc = html;
+  frame.onload = () => { frame.contentWindow?.print(); setTimeout(() => frame.remove(), 60000); };
+  document.body.appendChild(frame);
 }
 
 const radio = "size-4 accent-[var(--color-accent)]";
@@ -196,14 +205,7 @@ export function ExportModal({ snap, month, selfName, onClose, onDone }:
     if (format === "csv") download(new Blob(["﻿" + transactionsCsv(snap, items)], { type: "text/csv;charset=utf-8" }), `${base}.csv`);
     else if (format === "xlsx-data") download(writeXlsx(dataSheet(snap, items, selfName)), `${base}.xlsx`);
     else if (format === "xlsx-report") download(writeXlsx(reportSheets(snap, items, selfName, title)), `${base}-relatorio.xlsx`);
-    else {
-      // PDF: o relatório abre na janela de impressão, onde dá para escolher "Salvar como PDF".
-      const frame = document.createElement("iframe");
-      frame.style.cssText = "position:fixed;width:0;height:0;border:0;right:0;bottom:0";
-      frame.srcdoc = reportHtml(snap, items, selfName, title);
-      frame.onload = () => { frame.contentWindow?.print(); setTimeout(() => frame.remove(), 60000); };
-      document.body.appendChild(frame);
-    }
+    else printHtml(reportHtml(snap, items, selfName, title));
     onDone(format === "pdf" ? "Escolha “Salvar como PDF” na janela de impressão" : "Arquivo exportado");
     onClose();
   }
