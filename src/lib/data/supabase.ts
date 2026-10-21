@@ -184,6 +184,12 @@ export class SupabaseRepo implements Repo {
   }
   async signOut() { await this.db.auth.signOut(); }
 
+  async renameSelf(name: string) {
+    const { error } = await this.db.auth.updateUser({ data: { name } });
+    if (error) throw new Error(error.message);
+    if (this.user) { this.user = { ...this.user, name }; this.emit(); }
+  }
+
   private set(fn: (d: Snapshot) => Snapshot) { this.data = fn(this.data!); this.emit(); }
 
   async createTransaction(input: NewTransactionInput) {

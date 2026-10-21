@@ -72,9 +72,11 @@ export function PersonView({ snap, person, month, side, onClose, onDeleted }:
   );
 }
 
-export function PersonEdit({ person, onClose, onSaved }: { person: Person; onClose: () => void; onSaved: (msg: string) => void }) {
+/** Edita uma pessoa cadastrada ou, sem `person.workspaceId`, o nome do titular. */
+export function PersonEdit({ person, onClose, onSaved }: { person: Person | { id: ""; name: string }; onClose: () => void; onSaved: (msg: string) => void }) {
+  const self = !("workspaceId" in person);
   const [name, setName] = useState(person.name);
-  const [limit, setLimit] = useState(person.monthlyLimitCents ? formatBRL(person.monthlyLimitCents).replace(/^R\$\s?/, "") : "");
+  const [limit, setLimit] = useState(!self && person.monthlyLimitCents ? formatBRL(person.monthlyLimitCents).replace(/^R\$\s?/, "") : "");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
@@ -88,8 +90,9 @@ export function PersonEdit({ person, onClose, onSaved }: { person: Person; onClo
     if (Object.keys(errs).length) return;
     setSaving(true);
     try {
-      await repo.upsertPerson({ id: person.id, name: name.trim(), monthlyLimitCents: cents || null, archived: person.archived });
-      onSaved("Pessoa atualizada");
+      if (self) await repo.renameSelf(name.trim());
+      else await repo.upsertPerson({ id: person.id, name: name.trim(), monthlyLimitCents: cents || null, archived: person.archived });
+      onSaved(self ? "Nome atualizado" : "Pessoa atualizada");
       onClose();
     } catch (err) {
       setErrors({ form: err instanceof Error ? err.message : "Não foi possível salvar." });
@@ -99,17 +102,17 @@ export function PersonEdit({ person, onClose, onSaved }: { person: Person; onClo
   }
 
   return (
-    <Dialog onClose={onClose} title={<h2 className="text-lg font-semibold">Editar pessoa</h2>}>
+    <Dialog onClose={onClose} title={<h2 className="text-lg font-semibold">{self ? "Editar seu nome" : "Editar pessoa"}</h2>}>
       <form onSubmit={submit} noValidate className="flex flex-col gap-4">
         <Field label="Nome *" htmlFor="p-name" error={errors.name}>
           <Input id="p-name" autoFocus value={name} onChange={(e) => setName(e.target.value)} aria-invalid={!!errors.name || undefined} />
         </Field>
-        <Field label="Limite de gastos por mês (opcional)" htmlFor="p-limit" error={errors.limit} hint="Aparece em Pessoas como barra de uso.">
+        {!self && <Field label="Limite de gastos por mês (opcional)" htmlFor="p-limit" error={errors.limit} hint="Aparece em Pessoas como barra de uso.">
           <div className="relative">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">R$</span>
             <Input id="p-limit" inputMode="decimal" value={limit} onChange={(e) => setLimit(e.target.value)} placeholder="0,00" className="num pl-10" />
           </div>
-        </Field>
+        </Field>}
         {errors.form && <p role="alert" className="text-sm text-danger">{errors.form}</p>}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>

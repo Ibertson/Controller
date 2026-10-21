@@ -32,10 +32,10 @@ export default function Transacoes() {
   const [source, setSource] = useState("");
   const [category, setCategory] = useState("");
   const [person, setPerson] = useState("");
-  // Pessoa clicada (mostra Ver/Editar/Apagar) e janelas abertas.
+  // Pessoa clicada (mostra Ver/Editar/Excluir) e janelas abertas.
   const [active, setActive] = useState<string | null>(null);
   const [viewing, setViewing] = useState<{ id: string; name: string } | null>(null);
-  const [editing, setEditing] = useState<Person | null>(null);
+  const [editing, setEditing] = useState<Person | { id: ""; name: string } | null>(null);
 
   if (!snap) return <div className="flex flex-col gap-4">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-28" />)}</div>;
 
@@ -44,7 +44,7 @@ export default function Transacoes() {
 
   // Pessoas: o titular (lançamentos sem pessoa) e cada pessoa cadastrada.
   const byPerson = totalsByPerson(snap, month, side);
-  const people = [{ id: "", name: session?.name ?? "Você" }, ...snap.people.filter((p) => !p.archived)];
+  const people = [{ id: "" as const, name: session?.name ?? "Você" }, ...snap.people.filter((p) => !p.archived)];
 
   const term = q.trim().toLowerCase();
   const items = monthTransactions(snap, month).filter((t) =>
@@ -63,11 +63,14 @@ export default function Transacoes() {
   const accBalances = accountBalances(snap);
   const accounts = snap.accounts.filter((a) => !a.archived);
 
-  async function removePerson(p: Person) {
-    if (!confirm(`Apagar ${p.name}? Os lançamentos ligados a essa pessoa continuam salvos.`)) return;
+  async function removePerson(p: Person | { id: ""; name: string }) {
+    setActive(null);
+    // O titular é quem está conectado: os lançamentos sem pessoa são dele.
+    if (!("workspaceId" in p)) return toast("Você é o titular da conta e não pode ser excluído. Use Editar para mudar seu nome.");
+    if (!confirm(`Excluir ${p.name}? Os lançamentos ligados a essa pessoa continuam salvos.`)) return;
     setActive(null);
     await repo.upsertPerson({ ...p, archived: true });
-    toast("Pessoa apagada");
+    toast("Pessoa excluída");
   }
   const groups = [
     { label: "Contas bancárias", list: accounts.filter((a) => a.kind === "checking" || a.kind === "savings") },
@@ -114,12 +117,10 @@ export default function Transacoes() {
                   <div className="absolute top-0 flex gap-1 rounded-pill border border-border bg-surface-raised p-0.5 shadow-card">
                     <button type="button" aria-label={`Ver lançamentos de ${p.name}`} onClick={() => { setViewing(p); setActive(null); }}
                       className="grid size-7 place-items-center rounded-pill text-text-muted hover:bg-surface hover:text-text"><Eye aria-hidden className="size-4" /></button>
-                    {"workspaceId" in p && <>
-                      <button type="button" aria-label={`Editar ${p.name}`} onClick={() => { setEditing(p); setActive(null); }}
-                        className="grid size-7 place-items-center rounded-pill text-text-muted hover:bg-surface hover:text-text"><Pencil aria-hidden className="size-4" /></button>
-                      <button type="button" aria-label={`Apagar ${p.name}`} onClick={() => removePerson(p)}
-                        className="grid size-7 place-items-center rounded-pill text-danger hover:bg-danger-soft"><Trash2 aria-hidden className="size-4" /></button>
-                    </>}
+                    <button type="button" aria-label={`Editar ${p.name}`} onClick={() => { setEditing(p); setActive(null); }}
+                      className="grid size-7 place-items-center rounded-pill text-text-muted hover:bg-surface hover:text-text"><Pencil aria-hidden className="size-4" /></button>
+                    <button type="button" aria-label={`Excluir ${p.name}`} onClick={() => removePerson(p)}
+                      className="grid size-7 place-items-center rounded-pill text-danger hover:bg-danger-soft"><Trash2 aria-hidden className="size-4" /></button>
                   </div>
                 )}
                 <button type="button" aria-expanded={active === p.id} aria-label={`Opções de ${p.name}`} onClick={() => setActive(active === p.id ? null : p.id)}
