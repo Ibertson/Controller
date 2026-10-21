@@ -20,6 +20,8 @@ import type { AccountKind, Person } from "@/lib/types";
 
 const kindLabel: Record<AccountKind, string> = { checking: "Conta corrente", savings: "Poupança", wallet: "Dinheiro", other: "Outra" };
 
+const SELF_HIDDEN_KEY = "sobra:titular-oculto";
+
 export default function Transacoes() {
   const snap = useSnapshot();
   const session = useSession();
@@ -35,6 +37,13 @@ export default function Transacoes() {
   // Pessoa clicada (mostra Ver/Editar/Excluir) e janelas abertas.
   const [active, setActive] = useState<string | null>(null);
   const [viewing, setViewing] = useState<{ id: string; name: string } | null>(null);
+  const [selfHidden, setSelfHiddenState] = useState(() => {
+    try { return typeof window !== "undefined" && localStorage.getItem(SELF_HIDDEN_KEY) === "1"; } catch { return false; }
+  });
+  const setSelfHidden = (v: boolean) => {
+    setSelfHiddenState(v);
+    try { if (v) localStorage.setItem(SELF_HIDDEN_KEY, "1"); else localStorage.removeItem(SELF_HIDDEN_KEY); } catch { /* sem armazenamento: vale só nesta visita */ }
+  };
   const [editing, setEditing] = useState<Person | { id: ""; name: string } | null>(null);
 
   if (!snap) return <div className="flex flex-col gap-4">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-28" />)}</div>;
@@ -44,7 +53,7 @@ export default function Transacoes() {
 
   // Pessoas: o titular (lançamentos sem pessoa) e cada pessoa cadastrada.
   const byPerson = totalsByPerson(snap, month, side);
-  const people = [{ id: "" as const, name: session?.name ?? "Você" }, ...snap.people.filter((p) => !p.archived)];
+  const people = [...(selfHidden ? [] : [{ id: "" as const, name: session?.name ?? "Você" }]), ...snap.people.filter((p) => !p.archived)];
 
   const term = q.trim().toLowerCase();
   const items = monthTransactions(snap, month).filter((t) =>
@@ -65,12 +74,14 @@ export default function Transacoes() {
 
   async function removePerson(p: Person | { id: ""; name: string }) {
     setActive(null);
-    // O titular é quem está conectado: os lançamentos sem pessoa são dele.
-    if (!("workspaceId" in p)) return toast("Você é o titular da conta e não pode ser excluído. Use Editar para mudar seu nome.");
-    if (!confirm(`Excluir ${p.name}? Os lançamentos ligados a essa pessoa continuam salvos.`)) return;
-    setActive(null);
+    if (!confirm("Tem certeza que deseja excluir esta pessoa? Os lançamentos ligados a ela não serão excluídos.")) return;
+    if (!("workspaceId" in p)) {
+      // O titular não é um cadastro: só sai da lista neste aparelho.
+      setSelfHidden(true);
+      return toast("Pessoa excluída", { label: "Desfazer", run: () => setSelfHidden(false) });
+    }
     await repo.upsertPerson({ ...p, archived: true });
-    toast("Pessoa excluída");
+    toast("Pessoa excluída", { label: "Desfazer", run: () => void repo.upsertPerson({ ...p, archived: false }) });
   }
   const groups = [
     { label: "Contas bancárias", list: accounts.filter((a) => a.kind === "checking" || a.kind === "savings") },
