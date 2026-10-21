@@ -1,12 +1,5 @@
 import type { Category, Snapshot } from "../types";
-
-// Categorias iniciais: nomes genéricos, escolhidos para o Sobra. Ícones são nomes do Lucide.
-const expense: [string, string][] = [
-  ["Mercado", "shopping-cart"], ["Casa", "house"], ["Contas", "receipt"], ["Transporte", "car"],
-  ["Restaurantes", "utensils"], ["Saúde", "heart-pulse"], ["Educação", "graduation-cap"],
-  ["Lazer", "party-popper"], ["Compras", "shopping-bag"], ["Assinaturas", "repeat"], ["Outros", "ellipsis"],
-];
-const income: [string, string][] = [["Salário", "briefcase"], ["Extra", "sparkles"], ["Rendimentos", "trending-up"]];
+import { DEFAULT_EXPENSE as expense, DEFAULT_INCOME as income } from "../categories";
 
 export function emptySnapshot(newId: () => string): Snapshot {
   const workspaceId = newId();

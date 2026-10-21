@@ -9,7 +9,8 @@ import {
   CalendarCheck, X,
 } from "lucide-react";
 import { addMonths, monthLabel, monthOf, today } from "@/lib/dates";
-import { repo, useLoadError, useSession } from "@/lib/data";
+import { defaultCategoryChanges } from "@/lib/categories";
+import { repo, useLoadError, useSession, useSnapshot } from "@/lib/data";
 import { TransactionModal } from "./TransactionModal";
 import { Button, Skeleton } from "./ui";
 
@@ -54,6 +55,8 @@ const nav = [
     { href: "/configuracoes", label: "Perfil", icon: CircleUserRound },
   ] },
 ];
+
+const categoriesRunning = new Set<string>();
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const path = usePathname();
@@ -111,6 +114,22 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [toastState, setToast] = useState<{ msg: string; action?: { label: string; run: () => void } } | null>(null);
 
   useEffect(() => { if (session === null) router.replace("/entrar"); }, [session, router]);
+
+  // Uma vez por conta: cria as categorias padrão que faltam (e renomeia as antigas equivalentes).
+  const workspaceId = useSnapshot()?.workspace.id;
+  useEffect(() => {
+    if (!workspaceId) return;
+    const key = `sobra:categorias-padrao-v2:${workspaceId}`;
+    try { if (localStorage.getItem(key) || categoriesRunning.has(key)) return; } catch { return; }
+    categoriesRunning.add(key);
+    void (async () => {
+      try {
+        for (const c of defaultCategoryChanges(repo.snapshot()?.categories ?? [])) await repo.upsertCategory(c);
+        localStorage.setItem(key, "1");
+      } catch { /* tenta de novo na próxima vez que o app abrir */ }
+      categoriesRunning.delete(key);
+    })();
+  }, [workspaceId]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
