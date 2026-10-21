@@ -12,9 +12,10 @@ import { Button, Field, Input, Segmented, inputClass } from "./ui";
 
 type Kind = Extract<TransactionKind, "expense" | "income" | "transfer">;
 
-export function TransactionModal({ onClose, onSaved }: { onClose: () => void; onSaved: (msg: string, undo?: () => void) => void }) {
+export function TransactionModal({ initialKind = "expense", onClose, onSaved }:
+  { initialKind?: "expense" | "income"; onClose: () => void; onSaved: (msg: string, undo?: () => void) => void }) {
   const snap = useSnapshot();
-  const [kind, setKind] = useState<Kind>("expense");
+  const [kind, setKind] = useState<Kind>(initialKind);
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
