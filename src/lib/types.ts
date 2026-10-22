@@ -131,6 +131,20 @@ export interface Debt {
   notes: string; createdAt: string;
 }
 
+export type ReminderType = "casa" | "reforma" | "manutencao" | "carro" | "moto" | "outro";
+
+/** Lembrete com data; com repetição, concluir avança a data. */
+export interface Reminder {
+  id: ID; workspaceId: ID; title: string; type: ReminderType; dueOn: string;
+  /** 0 = não repete. */
+  repeatDays: 0 | 30 | 90 | 180 | 365;
+  /** null = conta principal. */
+  personId: ID | null; notes: string;
+  /** Número (só dígitos, com DDI) para enviar pelo WhatsApp; null = escolher o contato no WhatsApp. */
+  whatsapp: string | null;
+  doneAt: string | null; lastDoneOn: string | null;
+}
+
 export interface Snapshot {
   workspace: Workspace;
   accounts: Account[];
@@ -150,4 +164,5 @@ export interface Snapshot {
   investmentGoals?: InvestmentGoal[];
   /** Dívidas parceladas (ausentes em dados antigos). */
   debts?: Debt[];
+  reminders?: Reminder[];
 }

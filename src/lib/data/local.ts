@@ -87,7 +87,7 @@ export class LocalRepo implements Repo {
     }));
   }
 
-  private upsert<K extends "accounts" | "cards" | "categories" | "people" | "recurring" | "goals" | "investments" | "investmentGoals" | "debts">(key: K, item: { id?: string; [k: string]: unknown }) {
+  private upsert<K extends "accounts" | "cards" | "categories" | "people" | "recurring" | "goals" | "investments" | "investmentGoals" | "debts" | "reminders">(key: K, item: { id?: string; [k: string]: unknown }) {
     let saved!: NonNullable<Snapshot[K]>[number];
     this.update((d) => {
       const id = item.id ?? newId();
@@ -124,6 +124,8 @@ export class LocalRepo implements Repo {
     const old = (this.snapshot()?.debts ?? []).find((d) => d.id === x.id);
     return this.upsert("debts", { ...x, createdAt: old?.createdAt ?? new Date().toISOString() }) as ReturnType<Repo["upsertDebt"]>;
   }
+  upsertReminder(r: Parameters<Repo["upsertReminder"]>[0]) { return this.upsert("reminders", r) as ReturnType<Repo["upsertReminder"]>; }
+  async deleteReminder(id: string) { this.update((d) => ({ ...d, reminders: (d.reminders ?? []).filter((x) => x.id !== id) })); }
   async deleteDebt(id: string) { this.update((d) => ({ ...d, debts: (d.debts ?? []).filter((x) => x.id !== id) })); }
   async deleteRecurring(id: string) {
     this.update((d) => ({

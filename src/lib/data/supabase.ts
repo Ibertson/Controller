@@ -2,7 +2,7 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildTransactions } from "../transactions";
-import type { Account, Card, Category, Debt, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Recurring, Snapshot, Transaction } from "../types";
+import type { Account, Card, Category, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Recurring, Snapshot, Transaction } from "../types";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import { emptySnapshot } from "./seed";
 
@@ -121,6 +121,16 @@ const fromDebt = (d: Debt) => ({
   asset_description: d.assetDescription, commission_cents: d.commissionCents, commission_pct: d.commissionPct, seller: d.seller,
   asset_final_cents: d.assetFinalCents, months_to_ready: d.monthsToReady, extra_costs: d.extraCosts, notes: d.notes,
 });
+const toReminder = (r: Row): Reminder => ({
+  id: r.id as string, workspaceId: r.workspace_id as string, title: r.title as string, type: r.type as Reminder["type"],
+  dueOn: r.due_on as string, repeatDays: Number(r.repeat_days ?? 0) as Reminder["repeatDays"], personId: (r.person_id as string) ?? null,
+  notes: (r.notes as string) ?? "", whatsapp: (r.whatsapp as string) ?? null,
+  doneAt: (r.done_at as string) ?? null, lastDoneOn: (r.last_done_on as string) ?? null,
+});
+const fromReminder = (x: Reminder) => ({
+  id: x.id, workspace_id: x.workspaceId, title: x.title, type: x.type, due_on: x.dueOn, repeat_days: x.repeatDays,
+  person_id: x.personId, notes: x.notes, whatsapp: x.whatsapp, done_at: x.doneAt, last_done_on: x.lastDoneOn,
+});
 const fromRecurring = (r: Recurring) => ({
   id: r.id, workspace_id: r.workspaceId, kind: r.kind, description: r.description, amount_cents: r.amountCents, day: r.day,
   category_id: r.categoryId, account_id: r.accountId, person_id: r.personId, start_month: r.startMonth, active: r.active,
@@ -199,12 +209,12 @@ export class SupabaseRepo implements Repo {
     }
     if (!wsId) wsId = await this.createPersonalWorkspace(uid);
 
-    const [ws, accounts, cards, categories, people, transactions, recurring, goals, contributions, investments, investmentGoals, debts] = await Promise.all([
+    const [ws, accounts, cards, categories, people, transactions, recurring, goals, contributions, investments, investmentGoals, debts, reminders] = await Promise.all([
       this.db.from("workspaces").select("id,name,currency").eq("id", wsId).single(),
       this.all("accounts", wsId), this.all("cards", wsId), this.all("categories", wsId),
       this.all("people", wsId), this.all("transactions", wsId), this.all("recurring", wsId),
       this.all("goals", wsId), this.all("goal_contributions", wsId),
-      this.all("investments", wsId), this.all("investment_goals", wsId), this.all("debts", wsId),
+      this.all("investments", wsId), this.all("investment_goals", wsId), this.all("debts", wsId), this.all("reminders", wsId),
     ]);
     const w = must(ws);
     this.data = {
@@ -221,6 +231,7 @@ export class SupabaseRepo implements Repo {
       investments: investments.map(toInvestment),
       investmentGoals: investmentGoals.map(toInvestmentGoal),
       debts: debts.map(toDebt),
+      reminders: reminders.map(toReminder),
     };
     this.emit();
   }
@@ -318,7 +329,7 @@ export class SupabaseRepo implements Repo {
   async resetAll() {
     const ws = this.data!.workspace;
     // Ordem das chaves estrangeiras: lançamentos antes de contas, cartões, categorias e pessoas.
-    for (const table of ["transactions", "recurring", "goal_contributions", "goals", "investments", "investment_goals", "debts", "month_closings", "cards", "accounts", "categories", "people"]) {
+    for (const table of ["transactions", "recurring", "goal_contributions", "goals", "investments", "investment_goals", "debts", "reminders", "month_closings", "cards", "accounts", "categories", "people"]) {
       must(await this.db.from(table).delete().eq("workspace_id", ws.id));
     }
     const fresh = freshSnapshot(ws, newId);
@@ -334,7 +345,7 @@ export class SupabaseRepo implements Repo {
     this.set((d) => ({ ...d, transactions: d.transactions.map((t) => (t.id === id ? { ...t, isPaid: true, dueOn: null, accountId: accountId ?? t.accountId } : t)) }));
   }
 
-  private async upsert<K extends "accounts" | "cards" | "categories" | "people" | "recurring" | "goals" | "investments" | "investmentGoals" | "debts", T extends NonNullable<Snapshot[K]>[number]>(
+  private async upsert<K extends "accounts" | "cards" | "categories" | "people" | "recurring" | "goals" | "investments" | "investmentGoals" | "debts" | "reminders", T extends NonNullable<Snapshot[K]>[number]>(
     key: K, item: Omit<T, "workspaceId" | "id"> & { id?: string }, toRow: (x: T) => Row,
   ): Promise<T> {
     const saved = { ...item, id: item.id ?? newId(), workspaceId: this.data!.workspace.id } as T;
@@ -378,6 +389,11 @@ export class SupabaseRepo implements Repo {
   upsertDebt(x: Parameters<Repo["upsertDebt"]>[0]) {
     const old = (this.data!.debts ?? []).find((d) => d.id === x.id);
     return this.upsert<"debts", Debt>("debts", { ...x, createdAt: old?.createdAt ?? new Date().toISOString() }, fromDebt);
+  }
+  upsertReminder(r: Parameters<Repo["upsertReminder"]>[0]) { return this.upsert<"reminders", Reminder>("reminders", r, fromReminder); }
+  async deleteReminder(id: string) {
+    must(await this.db.from("reminders").delete().eq("id", id));
+    this.set((d) => ({ ...d, reminders: (d.reminders ?? []).filter((x) => x.id !== id) }));
   }
   async deleteDebt(id: string) {
     must(await this.db.from("debts").delete().eq("id", id));
