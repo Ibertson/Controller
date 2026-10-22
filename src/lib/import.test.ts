@@ -6,9 +6,10 @@ import { emptySnapshot } from "./data/seed";
 import { emptyFilters, filterStatement, statementTotals, type ExtratoFilters } from "./extrato";
 import { agendaEvents, monthClosing, pendingTotals, recurringDate } from "./previsao";
 import { goalSummary, monthlyNeeded, savedByGoal } from "./goals";
+import { distributionByType, evolutionMonths, goalProgress, investedByMonth, investmentTotals, matchesSearch, returnPct } from "./investments";
 import { filterForExport } from "./report";
 import { parseAmount, parseCsv, parseDate, parseOfx, rowsFromTable } from "./statement";
-import type { Category, Goal, Snapshot, Transaction } from "./types";
+import type { Category, Goal, Investment, Snapshot, Transaction } from "./types";
 import { unzip, writeXlsx } from "./xlsx";
 
 describe("extrato", () => {
@@ -265,5 +266,34 @@ describe("metas", () => {
     expect(monthlyNeeded({ targetCents: 100000, targetDate: "2027-02-15" }, 25000, "2026-10-22")).toBe(18750);
     expect(monthlyNeeded({ targetCents: 100000, targetDate: null }, 0, "2026-10-22")).toBeNull();
     expect(monthlyNeeded({ targetCents: 100000, targetDate: "2026-10-30" }, 0, "2026-10-22")).toBe(100000);
+  });
+});
+
+describe("investimentos", () => {
+  const inv = (o: Partial<Investment>): Investment => ({ id: "i1", workspaceId: "w", name: "Tesouro Selic 2029", type: "tesouro", institution: "Nubank",
+    investedCents: 100000, currentCents: null, incomeCents: 0, rate: null, boughtOn: "2026-08-10", maturityOn: null, notes: "", ...o });
+  const list = [inv({}), inv({ id: "i2", name: "PETR4", type: "acoes", investedCents: 50000, currentCents: 45000, incomeCents: 2000, boughtOn: "2026-10-01" }),
+    inv({ id: "i3", name: "CDB Inter", type: "cdb", institution: "Inter", investedCents: 20000, currentCents: 23000, boughtOn: "2025-12-05" })];
+  it("soma patrimônio, valorização e rendimento", () => {
+    expect(investmentTotals(list)).toEqual({ investedCents: 170000, patrimonyCents: 168000, appreciationCents: -2000, incomeCents: 2000, returnCents: 0 });
+    expect(returnPct(list[1])).toBeCloseTo(-6);
+    expect(distributionByType(list).map((s) => [s.id, s.cents])).toEqual([["tesouro", 100000], ["acoes", 45000], ["cdb", 23000]]);
+  });
+  it("evolução acumula pelo mês da compra", () => {
+    const months = evolutionMonths(list, "6m", "2026-10-01");
+    expect(months).toEqual(["2026-05-01", "2026-06-01", "2026-07-01", "2026-08-01", "2026-09-01", "2026-10-01"]);
+    expect(investedByMonth(list, months)).toEqual([20000, 20000, 20000, 120000, 120000, 170000]);
+    expect(evolutionMonths(list, "all", "2026-10-01")[0]).toBe("2025-12-01");
+    expect(evolutionMonths(list, "year", "2026-10-01")).toHaveLength(10);
+    expect(evolutionMonths([], "all", "2026-10-01")).toEqual(["2026-09-01", "2026-10-01"]);
+  });
+  it("meta soma o tipo dela ou todos", () => {
+    const g = { id: "m", workspaceId: "w", name: "Reserva", targetCents: 200000, deadline: null, description: "" };
+    expect(goalProgress({ ...g, assetType: null }, list)).toBe(168000);
+    expect(goalProgress({ ...g, assetType: "cdb" }, list)).toBe(23000);
+  });
+  it("busca ignora acento e procura na instituição", () => {
+    expect(list.filter((i) => matchesSearch(i, "acoes")).map((i) => i.id)).toEqual(["i2"]);
+    expect(list.filter((i) => matchesSearch(i, "inter")).map((i) => i.id)).toEqual(["i3"]);
   });
 });

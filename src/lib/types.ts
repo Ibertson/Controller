@@ -94,6 +94,23 @@ export interface Goal {
 /** Valor guardado numa meta; negativo = resgate. */
 export interface GoalContribution { id: ID; goalId: ID; workspaceId: ID; amountCents: number; contributedOn: string; personId: ID | null; }
 
+export type InvestmentType = "tesouro" | "cdb" | "acoes" | "fundos" | "outros";
+
+/** Uma aplicação. Sem valor atual, vale o aplicado. */
+export interface Investment {
+  id: ID; workspaceId: ID; name: string; type: InvestmentType; institution: string;
+  investedCents: number; currentCents: number | null; incomeCents: number;
+  /** Taxa de rendimento informada, em % (ex.: 10.5). */
+  rate: number | null;
+  boughtOn: string; maturityOn: string | null; notes: string;
+}
+
+/** Meta de investimento; assetType null = todos os tipos. */
+export interface InvestmentGoal {
+  id: ID; workspaceId: ID; name: string; targetCents: number; assetType: InvestmentType | null;
+  deadline: string | null; description: string;
+}
+
 export interface Snapshot {
   workspace: Workspace;
   accounts: Account[];
@@ -108,4 +125,7 @@ export interface Snapshot {
   /** Metas e aportes (ausentes em dados antigos). */
   goals?: Goal[];
   goalContributions?: GoalContribution[];
+  /** Investimentos e metas de investimento (ausentes em dados antigos). */
+  investments?: Investment[];
+  investmentGoals?: InvestmentGoal[];
 }

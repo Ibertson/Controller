@@ -2,7 +2,7 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildTransactions } from "../transactions";
-import type { Account, Card, Category, Goal, GoalContribution, NewTransactionInput, Person, Recurring, Snapshot, Transaction } from "../types";
+import type { Account, Card, Category, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Recurring, Snapshot, Transaction } from "../types";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import { emptySnapshot } from "./seed";
 
@@ -82,6 +82,26 @@ const toContribution = (r: Row): GoalContribution => ({
   id: r.id as string, goalId: r.goal_id as string, workspaceId: r.workspace_id as string, amountCents: Number(r.amount_cents),
   contributedOn: r.contributed_on as string, personId: (r.person_id as string) ?? null,
 });
+const toInvestment = (r: Row): Investment => ({
+  id: r.id as string, workspaceId: r.workspace_id as string, name: r.name as string, type: r.type as Investment["type"],
+  institution: (r.institution as string) ?? "", investedCents: Number(r.invested_cents),
+  currentCents: r.current_cents == null ? null : Number(r.current_cents), incomeCents: Number(r.income_cents ?? 0),
+  rate: r.rate == null ? null : Number(r.rate), boughtOn: r.bought_on as string, maturityOn: (r.maturity_on as string) ?? null,
+  notes: (r.notes as string) ?? "",
+});
+const fromInvestment = (i: Investment) => ({
+  id: i.id, workspace_id: i.workspaceId, name: i.name, type: i.type, institution: i.institution, invested_cents: i.investedCents,
+  current_cents: i.currentCents, income_cents: i.incomeCents, rate: i.rate, bought_on: i.boughtOn, maturity_on: i.maturityOn, notes: i.notes,
+});
+const toInvestmentGoal = (r: Row): InvestmentGoal => ({
+  id: r.id as string, workspaceId: r.workspace_id as string, name: r.name as string, targetCents: Number(r.target_cents),
+  assetType: (r.asset_type as InvestmentGoal["assetType"]) ?? null, deadline: (r.deadline as string) ?? null,
+  description: (r.description as string) ?? "",
+});
+const fromInvestmentGoal = (g: InvestmentGoal) => ({
+  id: g.id, workspace_id: g.workspaceId, name: g.name, target_cents: g.targetCents, asset_type: g.assetType,
+  deadline: g.deadline, description: g.description,
+});
 const fromRecurring = (r: Recurring) => ({
   id: r.id, workspace_id: r.workspaceId, kind: r.kind, description: r.description, amount_cents: r.amountCents, day: r.day,
   category_id: r.categoryId, account_id: r.accountId, person_id: r.personId, start_month: r.startMonth, active: r.active,
@@ -160,11 +180,12 @@ export class SupabaseRepo implements Repo {
     }
     if (!wsId) wsId = await this.createPersonalWorkspace(uid);
 
-    const [ws, accounts, cards, categories, people, transactions, recurring, goals, contributions] = await Promise.all([
+    const [ws, accounts, cards, categories, people, transactions, recurring, goals, contributions, investments, investmentGoals] = await Promise.all([
       this.db.from("workspaces").select("id,name,currency").eq("id", wsId).single(),
       this.all("accounts", wsId), this.all("cards", wsId), this.all("categories", wsId),
       this.all("people", wsId), this.all("transactions", wsId), this.all("recurring", wsId),
       this.all("goals", wsId), this.all("goal_contributions", wsId),
+      this.all("investments", wsId), this.all("investment_goals", wsId),
     ]);
     const w = must(ws);
     this.data = {
@@ -178,6 +199,8 @@ export class SupabaseRepo implements Repo {
       recurring: recurring.map(toRecurring),
       goals: goals.map(toGoal),
       goalContributions: contributions.map(toContribution),
+      investments: investments.map(toInvestment),
+      investmentGoals: investmentGoals.map(toInvestmentGoal),
     };
     this.emit();
   }
@@ -275,7 +298,7 @@ export class SupabaseRepo implements Repo {
   async resetAll() {
     const ws = this.data!.workspace;
     // Ordem das chaves estrangeiras: lançamentos antes de contas, cartões, categorias e pessoas.
-    for (const table of ["transactions", "recurring", "goal_contributions", "goals", "debts", "month_closings", "cards", "accounts", "categories", "people"]) {
+    for (const table of ["transactions", "recurring", "goal_contributions", "goals", "investments", "investment_goals", "debts", "month_closings", "cards", "accounts", "categories", "people"]) {
       must(await this.db.from(table).delete().eq("workspace_id", ws.id));
     }
     const fresh = freshSnapshot(ws, newId);
@@ -291,11 +314,11 @@ export class SupabaseRepo implements Repo {
     this.set((d) => ({ ...d, transactions: d.transactions.map((t) => (t.id === id ? { ...t, isPaid: true, dueOn: null, accountId: accountId ?? t.accountId } : t)) }));
   }
 
-  private async upsert<K extends "accounts" | "cards" | "categories" | "people" | "recurring" | "goals", T extends NonNullable<Snapshot[K]>[number]>(
+  private async upsert<K extends "accounts" | "cards" | "categories" | "people" | "recurring" | "goals" | "investments" | "investmentGoals", T extends NonNullable<Snapshot[K]>[number]>(
     key: K, item: Omit<T, "workspaceId" | "id"> & { id?: string }, toRow: (x: T) => Row,
   ): Promise<T> {
     const saved = { ...item, id: item.id ?? newId(), workspaceId: this.data!.workspace.id } as T;
-    must(await this.db.from(key).upsert(toRow(saved)));
+    must(await this.db.from(key === "investmentGoals" ? "investment_goals" : key).upsert(toRow(saved)));
     this.set((d) => {
       const list = (d[key] ?? []) as T[];
       return { ...d, [key]: list.some((x) => x.id === saved.id) ? list.map((x) => (x.id === saved.id ? saved : x)) : [...list, saved] };
@@ -324,6 +347,18 @@ export class SupabaseRepo implements Repo {
     return saved;
   }
   upsertRecurring(r: Parameters<Repo["upsertRecurring"]>[0]) { return this.upsert<"recurring", Recurring>("recurring", r, fromRecurring); }
+  upsertInvestment(i: Parameters<Repo["upsertInvestment"]>[0]) { return this.upsert<"investments", Investment>("investments", i, fromInvestment); }
+  async deleteInvestment(id: string) {
+    must(await this.db.from("investments").delete().eq("id", id));
+    this.set((d) => ({ ...d, investments: (d.investments ?? []).filter((x) => x.id !== id) }));
+  }
+  upsertInvestmentGoal(g: Parameters<Repo["upsertInvestmentGoal"]>[0]) {
+    return this.upsert<"investmentGoals", InvestmentGoal>("investmentGoals", g, fromInvestmentGoal);
+  }
+  async deleteInvestmentGoal(id: string) {
+    must(await this.db.from("investment_goals").delete().eq("id", id));
+    this.set((d) => ({ ...d, investmentGoals: (d.investmentGoals ?? []).filter((x) => x.id !== id) }));
+  }
   async deleteRecurring(id: string) {
     must(await this.db.from("recurring").delete().eq("id", id));
     this.set((d) => ({
