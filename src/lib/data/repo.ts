@@ -1,4 +1,4 @@
-import type { Account, Card, Category, NewTransactionInput, Person, Recurring, Snapshot, Transaction } from "../types";
+import type { Account, Card, Category, Goal, GoalContribution, NewTransactionInput, Person, Recurring, Snapshot, Transaction } from "../types";
 import { emptySnapshot } from "./seed";
 
 /**
@@ -45,6 +45,15 @@ export interface Repo {
   upsertRecurring(r: Omit<Recurring, "workspaceId" | "id"> & { id?: string }): Promise<Recurring>;
   /** Apaga o gasto/receita fixa; lançamentos já feitos ficam. */
   deleteRecurring(id: string): Promise<void>;
+  upsertGoal(g: Omit<Goal, "workspaceId" | "id" | "createdAt"> & { id?: string }): Promise<Goal>;
+  /** Apaga a meta e os aportes dela. */
+  deleteGoal(id: string): Promise<void>;
+  addContribution(c: Omit<GoalContribution, "workspaceId" | "id">): Promise<GoalContribution>;
+}
+
+/** Metas e aportes ao apagar uma meta. */
+export function withoutGoal(d: Snapshot, id: string): Snapshot {
+  return { ...d, goals: (d.goals ?? []).filter((g) => g.id !== id), goalContributions: (d.goalContributions ?? []).filter((c) => c.goalId !== id) };
 }
 
 /** Ids atingidos ao excluir um lançamento com o escopo pedido (parcelas). */

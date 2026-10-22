@@ -79,6 +79,21 @@ export interface NewTransactionInput {
   recurringId?: ID | null;
 }
 
+export type GoalCategory = "viagem" | "tecnologia" | "educacao" | "saude" | "casa" | "veiculo" | "investimento" | "outro";
+
+/** Meta de economia. O valor guardado é a soma dos aportes (GoalContribution). */
+export interface Goal {
+  id: ID; workspaceId: ID; name: string; description: string; targetCents: number;
+  targetDate: string | null; status: "active" | "done" | "archived";
+  category: GoalCategory; personId: ID | null; color: string | null;
+  /** "preset:<chave>" (imagem pronta) ou data URL de uma foto enviada; null = só a cor. */
+  image: string | null; imagePosition: "top" | "center" | "bottom";
+  createdAt: string; completedAt: string | null;
+}
+
+/** Valor guardado numa meta; negativo = resgate. */
+export interface GoalContribution { id: ID; goalId: ID; workspaceId: ID; amountCents: number; contributedOn: string; personId: ID | null; }
+
 export interface Snapshot {
   workspace: Workspace;
   accounts: Account[];
@@ -90,4 +105,7 @@ export interface Snapshot {
   trash?: Transaction[];
   /** Gastos fixos e receitas fixas (ausente em dados antigos). */
   recurring?: Recurring[];
+  /** Metas e aportes (ausentes em dados antigos). */
+  goals?: Goal[];
+  goalContributions?: GoalContribution[];
 }
