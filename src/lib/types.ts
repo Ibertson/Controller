@@ -111,6 +111,26 @@ export interface InvestmentGoal {
   deadline: string | null; description: string;
 }
 
+export type DebtType = "financiamento" | "emprestimo" | "informal" | "consorcio" | "cartao" | "outro";
+export interface DebtExtraCost { name: string; amountCents: number; frequency: "unico" | "mensal" | "anual"; }
+
+/** Dívida parcelada. Quitada quando as parcelas pagas chegam ao total. */
+export interface Debt {
+  id: ID; workspaceId: ID; name: string; creditor: string; type: DebtType;
+  totalCents: number; installmentCents: number; installmentsTotal: number; installmentsPaid: number;
+  /** Data de início; a 1ª parcela vence no dia de vencimento a partir dela. */
+  startOn: string; dueDay: number;
+  /** Juros ao mês, em %. */
+  interestRate: number | null;
+  category: string | null; personId: ID | null;
+  /** O titular da conta é o responsável (personId fica null). */
+  selfResponsible: boolean;
+  /** Detalhes do financiamento (vazios nos outros tipos). */
+  assetDescription: string; commissionCents: number; commissionPct: number | null; seller: string;
+  assetFinalCents: number | null; monthsToReady: number | null; extraCosts: DebtExtraCost[];
+  notes: string; createdAt: string;
+}
+
 export interface Snapshot {
   workspace: Workspace;
   accounts: Account[];
@@ -128,4 +148,6 @@ export interface Snapshot {
   /** Investimentos e metas de investimento (ausentes em dados antigos). */
   investments?: Investment[];
   investmentGoals?: InvestmentGoal[];
+  /** Dívidas parceladas (ausentes em dados antigos). */
+  debts?: Debt[];
 }

@@ -6,10 +6,11 @@ import { emptySnapshot } from "./data/seed";
 import { emptyFilters, filterStatement, statementTotals, type ExtratoFilters } from "./extrato";
 import { agendaEvents, monthClosing, pendingTotals, recurringDate } from "./previsao";
 import { goalSummary, monthlyNeeded, savedByGoal } from "./goals";
+import { debtSummary, extraCostTotals, installmentDue, isPaidOff, nextDue } from "./debts";
 import { distributionByType, evolutionMonths, goalProgress, investedByMonth, investmentTotals, matchesSearch, returnPct } from "./investments";
 import { filterForExport } from "./report";
 import { parseAmount, parseCsv, parseDate, parseOfx, rowsFromTable } from "./statement";
-import type { Category, Goal, Investment, Snapshot, Transaction } from "./types";
+import type { Category, Debt, Goal, Investment, Snapshot, Transaction } from "./types";
 import { unzip, writeXlsx } from "./xlsx";
 
 describe("extrato", () => {
@@ -295,5 +296,29 @@ describe("investimentos", () => {
   it("busca ignora acento e procura na instituição", () => {
     expect(list.filter((i) => matchesSearch(i, "acoes")).map((i) => i.id)).toEqual(["i2"]);
     expect(list.filter((i) => matchesSearch(i, "inter")).map((i) => i.id)).toEqual(["i3"]);
+  });
+});
+
+describe("dívidas", () => {
+  const debt = (o: Partial<Debt>): Debt => ({ id: "d1", workspaceId: "w", name: "Carro", creditor: "Banco", type: "financiamento", totalCents: 1200000,
+    installmentCents: 100000, installmentsTotal: 12, installmentsPaid: 3, startOn: "2026-10-22", dueDay: 10, interestRate: 1.5, category: null,
+    personId: null, selfResponsible: false, assetDescription: "", commissionCents: 0, commissionPct: null, seller: "", assetFinalCents: null, monthsToReady: null,
+    extraCosts: [], notes: "", createdAt: "", ...o });
+  it("vence no dia escolhido a partir da data de início", () => {
+    expect(installmentDue(debt({}), 1)).toBe("2026-11-10");
+    expect(installmentDue(debt({ startOn: "2026-10-05" }), 1)).toBe("2026-10-10");
+    expect(installmentDue(debt({ startOn: "2026-01-15", dueDay: 31 }), 2)).toBe("2026-02-28");
+    expect(nextDue(debt({}))).toBe("2027-02-10");
+    expect(nextDue(debt({ installmentsPaid: 12 }))).toBeNull();
+  });
+  it("resume só as dívidas em aberto", () => {
+    const list = [debt({}), debt({ id: "d2", installmentsPaid: 12 }), debt({ id: "d3", totalCents: 50000, installmentCents: 25000, installmentsTotal: 2, installmentsPaid: 0 })];
+    expect(isPaidOff(list[1])).toBe(true);
+    expect(debtSummary(list)).toEqual({ totalCents: 1250000, paidCents: 300000, remainingCents: 950000, monthlyCents: 125000 });
+  });
+  it("soma custos extras por frequência", () => {
+    expect(extraCostTotals({ extraCosts: [{ name: "IPTU", amountCents: 1000, frequency: "anual" }, { name: "Pintura", amountCents: 500, frequency: "unico" },
+      { name: "Condomínio", amountCents: 300, frequency: "mensal" }, { name: "ITBI", amountCents: 200, frequency: "unico" }] }))
+      .toEqual({ unico: 700, mensal: 300, anual: 1000 });
   });
 });
