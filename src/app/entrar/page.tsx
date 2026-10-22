@@ -16,6 +16,9 @@ export default function Entrar() {
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
   const [sentTo, setSentTo] = useState("");
+  // Quem criou senha no Perfil pode entrar com email e senha em vez do link.
+  const [withPassword, setWithPassword] = useState(false);
+  const [password, setPassword] = useState("");
   // Publicado sem as variáveis do Supabase: avisa em vez de cair calado no modo local.
   const missingConfig = useSyncExternalStore(noSubscribe,
     () => !email && !/^(localhost|127\.|192\.168\.)/.test(window.location.hostname), () => false);
@@ -28,14 +31,16 @@ export default function Entrar() {
     const v = value.trim();
     if (!v) return setError(email ? "Informe seu email." : "Diga como quer ser chamado.");
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return setError("Esse email não parece certo.");
+    if (withPassword && !password) return setError("Digite sua senha.");
     setSending(true);
     try {
+      if (withPassword) { await repo.signInWithPassword(v, password); return; }
       const r = await repo.signIn(v);
       if (r === "check_email") setSentTo(v);
       else router.replace("/");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      setError(/rate|seconds/i.test(msg)
+      setError(withPassword ? msg : /rate|seconds/i.test(msg)
         ? "Muitos pedidos seguidos. Espere alguns minutos e tente de novo."
         : `Não deu para entrar agora (${msg}). Tente de novo.`);
     } finally {
@@ -67,11 +72,21 @@ export default function Entrar() {
             <p className="mt-1 text-text-muted">Anote o que entra e o que sai, e veja quanto sobra no fim do mês.</p>
             <div className="mt-6 flex flex-col gap-4">
               <Field label={email ? "Seu email" : "Seu nome"} htmlFor="login" error={error}
-                hint={email ? "Você recebe um link para entrar, sem senha." : "Por enquanto seus dados ficam só neste aparelho."}>
+                hint={email ? (withPassword ? undefined : "Você recebe um link para entrar, sem senha.") : "Por enquanto seus dados ficam só neste aparelho."}>
                 <Input id="login" autoFocus type={email ? "email" : "text"} autoComplete={email ? "email" : "given-name"} value={value}
                   onChange={(e) => setValue(e.target.value)} aria-invalid={!!error} aria-describedby={error ? "login-error" : "login-hint"} />
               </Field>
-              <Button type="submit" size="lg" loading={sending}>{email ? "Receber link de acesso" : "Começar"}</Button>
+              {withPassword && (
+                <Field label="Senha" htmlFor="login-password">
+                  <Input id="login-password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+                </Field>
+              )}
+              <Button type="submit" size="lg" loading={sending}>{!email ? "Começar" : withPassword ? "Entrar" : "Receber link de acesso"}</Button>
+              {email && (
+                <button type="button" className="text-sm font-semibold text-accent" onClick={() => { setWithPassword((w) => !w); setError(""); }}>
+                  {withPassword ? "Entrar com link no email" : "Entrar com senha"}
+                </button>
+              )}
             </div>
           </form>
         )}

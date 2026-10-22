@@ -1,14 +1,16 @@
 "use client";
 
 import { buildTransactions } from "../transactions";
-import type { GoalContribution, Snapshot } from "../types";
+import type { GoalContribution, Profile, Snapshot } from "../types";
+import { today } from "../dates";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import { emptySnapshot } from "./seed";
 
 const KEY = "sobra:v1";
 const newId = () => crypto.randomUUID();
 
-interface Stored { session: { name: string } | null; data: Snapshot | null; keys: string[] }
+type LocalProfile = Omit<Profile, "email" | "hasPassword">;
+interface Stored { session: { name: string } | null; data: Snapshot | null; keys: string[]; profile?: LocalProfile }
 
 /** Guarda tudo no navegador. Serve para usar já, sem servidor; dados ficam só neste aparelho. */
 export class LocalRepo implements Repo {
@@ -48,13 +50,39 @@ export class LocalRepo implements Repo {
 
   async signIn(name: string): Promise<SignInResult> {
     this.load();
-    this.commit({ ...this.state, session: { name: name.trim() }, data: this.state.data ?? emptySnapshot(newId) });
+    this.commit({
+      ...this.state, session: { name: name.trim() }, data: this.state.data ?? emptySnapshot(newId),
+      profile: this.state.profile ?? { memberSince: today(), phone: "", location: "", avatar: null, whatsapp: [] },
+    });
     return "signed_in";
   }
   loadError() { return null; }
   retry() {}
   async signOut() { this.commit({ ...this.state, session: null }); }
   async renameSelf(name: string) { this.load(); this.commit({ ...this.state, session: { name } }); }
+  async signInWithPassword(): Promise<void> { throw new Error("Neste modo não há senha: os dados ficam só neste aparelho."); }
+
+  private prof: Profile | null = null;
+  private profSrc: LocalProfile | undefined;
+  profile() {
+    this.load();
+    if (!this.state.session) return null;
+    // mesmo objeto enquanto o perfil guardado não muda (useSyncExternalStore exige)
+    if (!this.prof || this.state.profile !== this.profSrc) {
+      this.profSrc = this.state.profile;
+      const base = this.profSrc ?? { memberSince: today(), phone: "", location: "", avatar: null, whatsapp: [] };
+      this.prof = { ...base, email: null, hasPassword: false };
+    }
+    return this.prof;
+  }
+  async updateProfile(p: Parameters<Repo["updateProfile"]>[0]) {
+    const cur = this.profile();
+    if (!cur) throw new Error("não autenticado");
+    const { memberSince, phone, location, avatar, whatsapp } = { ...cur, ...p };
+    this.commit({ ...this.state, profile: { memberSince, phone, location, avatar, whatsapp } });
+  }
+  async changePassword(): Promise<void> { throw new Error("Neste modo não há senha: os dados ficam só neste aparelho."); }
+  async deleteAccount() { this.commit({ session: null, data: null, keys: [] }); }
 
   async createTransaction(input: Parameters<Repo["createTransaction"]>[0]) {
     const d = this.data();
