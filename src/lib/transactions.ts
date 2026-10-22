@@ -51,5 +51,6 @@ export function buildTransactions(
     dueOn: input.isPaid === false ? input.dueOn ?? input.occurredOn : null,
     source: input.source ?? "app",
     createdAt: ctx.now,
+    recurringId: input.recurringId ?? null,
   }));
 }

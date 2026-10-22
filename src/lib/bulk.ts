@@ -34,8 +34,12 @@ export function bulkTransactions(s: Snapshot, o: Base & { filter: BulkTxFilter }
   }).sort(newestFirst);
 }
 
-/** Aba Pagamentos: pagamentos de fatura. Gastos e receitas fixos ainda não existem no Sobra, então ficam vazios. */
+/** Aba Pagamentos: pagamentos de fatura e lançamentos de gastos e receitas fixas. */
 export function bulkPayments(s: Snapshot, o: Base & { filter: BulkPayFilter }): Transaction[] {
-  if (o.filter === "fixed_expense" || o.filter === "fixed_income") return [];
-  return s.transactions.filter((t) => t.kind === "card_payment" && inRange(t, o)).sort(newestFirst);
+  const fits = (t: Transaction) =>
+    o.filter === "card_payment" ? t.kind === "card_payment"
+      : o.filter === "fixed_expense" ? t.kind === "expense" && !!t.recurringId
+        : o.filter === "fixed_income" ? t.kind === "income" && !!t.recurringId
+          : t.kind === "card_payment" || !!t.recurringId;
+  return s.transactions.filter((t) => fits(t) && inRange(t, o)).sort(newestFirst);
 }

@@ -2,7 +2,7 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildTransactions } from "../transactions";
-import type { Account, Card, Category, NewTransactionInput, Person, Snapshot, Transaction } from "../types";
+import type { Account, Card, Category, NewTransactionInput, Person, Recurring, Snapshot, Transaction } from "../types";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, type Repo, type SignInResult } from "./repo";
 import { emptySnapshot } from "./seed";
 
@@ -52,12 +52,23 @@ const toTransaction = (r: Row): Transaction => ({
   installmentGroupId: (r.installment_group_id as string) ?? null, installmentNumber: (r.installment_number as number) ?? null,
   installmentTotal: (r.installment_total as number) ?? null, isPaid: r.is_paid as boolean, dueOn: (r.due_on as string) ?? null,
   source: r.source as Transaction["source"], createdAt: r.created_at as string, deletedAt: (r.deleted_at as string) ?? null,
+  recurringId: (r.recurring_id as string) ?? null,
 });
 const fromTransaction = (t: Transaction) => ({
   id: t.id, workspace_id: t.workspaceId, kind: t.kind, amount_cents: t.amountCents, occurred_on: t.occurredOn, description: t.description,
   category_id: t.categoryId, account_id: t.accountId, to_account_id: t.toAccountId, card_id: t.cardId, statement_month: t.statementMonth,
   person_id: t.personId, installment_group_id: t.installmentGroupId, installment_number: t.installmentNumber,
-  installment_total: t.installmentTotal, is_paid: t.isPaid, due_on: t.dueOn, source: t.source,
+  installment_total: t.installmentTotal, is_paid: t.isPaid, due_on: t.dueOn, source: t.source, recurring_id: t.recurringId ?? null,
+});
+const toRecurring = (r: Row): Recurring => ({
+  id: r.id as string, workspaceId: r.workspace_id as string, kind: r.kind as Recurring["kind"], description: r.description as string,
+  amountCents: Number(r.amount_cents), day: r.day as number, categoryId: (r.category_id as string) ?? null,
+  accountId: (r.account_id as string) ?? null, personId: (r.person_id as string) ?? null,
+  startMonth: r.start_month as string, active: r.active as boolean,
+});
+const fromRecurring = (r: Recurring) => ({
+  id: r.id, workspace_id: r.workspaceId, kind: r.kind, description: r.description, amount_cents: r.amountCents, day: r.day,
+  category_id: r.categoryId, account_id: r.accountId, person_id: r.personId, start_month: r.startMonth, active: r.active,
 });
 
 const newId = () => crypto.randomUUID();
@@ -133,10 +144,10 @@ export class SupabaseRepo implements Repo {
     }
     if (!wsId) wsId = await this.createPersonalWorkspace(uid);
 
-    const [ws, accounts, cards, categories, people, transactions] = await Promise.all([
+    const [ws, accounts, cards, categories, people, transactions, recurring] = await Promise.all([
       this.db.from("workspaces").select("id,name,currency").eq("id", wsId).single(),
       this.all("accounts", wsId), this.all("cards", wsId), this.all("categories", wsId),
-      this.all("people", wsId), this.all("transactions", wsId),
+      this.all("people", wsId), this.all("transactions", wsId), this.all("recurring", wsId),
     ]);
     const w = must(ws);
     this.data = {
@@ -147,6 +158,7 @@ export class SupabaseRepo implements Repo {
       people: people.map(toPerson),
       transactions: transactions.map(toTransaction).filter((t) => !t.deletedAt),
       trash: transactions.map(toTransaction).filter((t) => !!t.deletedAt),
+      recurring: recurring.map(toRecurring),
     };
     this.emit();
   }
@@ -244,7 +256,7 @@ export class SupabaseRepo implements Repo {
   async resetAll() {
     const ws = this.data!.workspace;
     // Ordem das chaves estrangeiras: lançamentos antes de contas, cartões, categorias e pessoas.
-    for (const table of ["transactions", "goal_contributions", "goals", "debts", "month_closings", "cards", "accounts", "categories", "people"]) {
+    for (const table of ["transactions", "recurring", "goal_contributions", "goals", "debts", "month_closings", "cards", "accounts", "categories", "people"]) {
       must(await this.db.from(table).delete().eq("workspace_id", ws.id));
     }
     const fresh = freshSnapshot(ws, newId);
@@ -260,13 +272,13 @@ export class SupabaseRepo implements Repo {
     this.set((d) => ({ ...d, transactions: d.transactions.map((t) => (t.id === id ? { ...t, isPaid: true, dueOn: null, accountId: accountId ?? t.accountId } : t)) }));
   }
 
-  private async upsert<K extends "accounts" | "cards" | "categories" | "people", T extends Snapshot[K][number]>(
+  private async upsert<K extends "accounts" | "cards" | "categories" | "people" | "recurring", T extends NonNullable<Snapshot[K]>[number]>(
     key: K, item: Omit<T, "workspaceId" | "id"> & { id?: string }, toRow: (x: T) => Row,
   ): Promise<T> {
     const saved = { ...item, id: item.id ?? newId(), workspaceId: this.data!.workspace.id } as T;
     must(await this.db.from(key).upsert(toRow(saved)));
     this.set((d) => {
-      const list = d[key] as T[];
+      const list = (d[key] ?? []) as T[];
       return { ...d, [key]: list.some((x) => x.id === saved.id) ? list.map((x) => (x.id === saved.id ? saved : x)) : [...list, saved] };
     });
     return saved;
@@ -275,4 +287,12 @@ export class SupabaseRepo implements Repo {
   upsertCard(c: Parameters<Repo["upsertCard"]>[0]) { return this.upsert<"cards", Card>("cards", c, fromCard); }
   upsertCategory(c: Parameters<Repo["upsertCategory"]>[0]) { return this.upsert<"categories", Category>("categories", c, fromCategory); }
   upsertPerson(p: Parameters<Repo["upsertPerson"]>[0]) { return this.upsert<"people", Person>("people", p, fromPerson); }
+  upsertRecurring(r: Parameters<Repo["upsertRecurring"]>[0]) { return this.upsert<"recurring", Recurring>("recurring", r, fromRecurring); }
+  async deleteRecurring(id: string) {
+    must(await this.db.from("recurring").delete().eq("id", id));
+    this.set((d) => ({
+      ...d, recurring: (d.recurring ?? []).filter((r) => r.id !== id),
+      transactions: d.transactions.map((t) => (t.recurringId === id ? { ...t, recurringId: null } : t)),
+    }));
+  }
 }

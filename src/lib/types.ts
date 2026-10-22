@@ -44,6 +44,18 @@ export interface Transaction {
   createdAt: string;
   /** Na lixeira desde esta data; ausente = ativo. */
   deletedAt?: string | null;
+  /** Lançamento de um gasto fixo ou receita fixa. */
+  recurringId?: ID | null;
+}
+
+/** Gasto fixo ou receita fixa: o mesmo valor todo mês, no mesmo dia. */
+export interface Recurring {
+  id: ID; workspaceId: ID; kind: "expense" | "income"; description: string; amountCents: number;
+  /** Dia do mês (1 a 31; em meses mais curtos vale o último dia). */
+  day: number;
+  categoryId: ID | null; accountId: ID | null; personId: ID | null;
+  /** Primeiro mês em que vale ("AAAA-MM-01"). */
+  startMonth: string; active: boolean;
 }
 
 /** Entrada do formulário "Novo lançamento". Parcelado gera várias Transaction. */
@@ -64,6 +76,7 @@ export interface NewTransactionInput {
   idempotencyKey?: string;
   /** De onde veio; padrão "app". */
   source?: Transaction["source"];
+  recurringId?: ID | null;
 }
 
 export interface Snapshot {
@@ -75,4 +88,6 @@ export interface Snapshot {
   transactions: Transaction[];
   /** Lançamentos excluídos, que podem ser restaurados (fora de todos os totais). */
   trash?: Transaction[];
+  /** Gastos fixos e receitas fixas (ausente em dados antigos). */
+  recurring?: Recurring[];
 }

@@ -1,4 +1,4 @@
-import type { Account, Card, Category, NewTransactionInput, Person, Snapshot, Transaction } from "../types";
+import type { Account, Card, Category, NewTransactionInput, Person, Recurring, Snapshot, Transaction } from "../types";
 import { emptySnapshot } from "./seed";
 
 /**
@@ -42,6 +42,9 @@ export interface Repo {
   upsertCard(c: Omit<Card, "workspaceId" | "id"> & { id?: string }): Promise<Card>;
   upsertCategory(c: Omit<Category, "workspaceId" | "id"> & { id?: string }): Promise<Category>;
   upsertPerson(p: Omit<Person, "workspaceId" | "id"> & { id?: string }): Promise<Person>;
+  upsertRecurring(r: Omit<Recurring, "workspaceId" | "id"> & { id?: string }): Promise<Recurring>;
+  /** Apaga o gasto/receita fixa; lançamentos já feitos ficam. */
+  deleteRecurring(id: string): Promise<void>;
 }
 
 /** Ids atingidos ao excluir um lançamento com o escopo pedido (parcelas). */
