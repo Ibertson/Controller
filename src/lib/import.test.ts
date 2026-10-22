@@ -8,10 +8,11 @@ import { agendaEvents, monthClosing, pendingTotals, recurringDate } from "./prev
 import { goalSummary, monthlyNeeded, savedByGoal } from "./goals";
 import { debtSummary, extraCostTotals, installmentDue, isPaidOff, nextDue } from "./debts";
 import { addDays, completeReminder, dueStatus, formatWhatsapp, normalizeWhatsapp, reminderMessage, whatsappLink } from "./reminders";
+import { addWhatsapp, checkPassword, initials, memberSinceLabel, removeWhatsapp, setPrimaryWhatsapp } from "./profile";
 import { distributionByType, evolutionMonths, goalProgress, investedByMonth, investmentTotals, matchesSearch, returnPct } from "./investments";
 import { filterForExport } from "./report";
 import { parseAmount, parseCsv, parseDate, parseOfx, rowsFromTable } from "./statement";
-import type { Category, Debt, Reminder, Goal, Investment, Snapshot, Transaction } from "./types";
+import type { Category, Debt, Reminder, Goal, Investment, Snapshot, Transaction, WhatsappNumber } from "./types";
 import { unzip, writeXlsx } from "./xlsx";
 
 describe("extrato", () => {
@@ -353,5 +354,26 @@ describe("lembretes no WhatsApp", () => {
     expect(msg).toContain("Oficina do Zé");
     expect(whatsappLink("oi & tchau", "5511999998888")).toBe("https://wa.me/5511999998888?text=oi%20%26%20tchau");
     expect(whatsappLink("oi", null)).toBe("https://wa.me/?text=oi");
+  });
+});
+
+describe("perfil", () => {
+  it("iniciais e membro desde", () => {
+    expect(initials("Ibertson Juvino")).toBe("IJ");
+    expect(initials("ana")).toBe("A");
+    expect(memberSinceLabel("2026-10-19")).toBe("out. de 2026");
+  });
+  it("lista de WhatsApp: limite, principal e remoção", () => {
+    let list = addWhatsapp([], { name: "Eu", personId: null, phone: "5511999990000" });
+    expect(Array.isArray(list) && list[0].primary).toBe(true);
+    list = addWhatsapp(list as WhatsappNumber[], { name: "Ana", personId: "p1", phone: "5511988880000" }) as WhatsappNumber[];
+    expect(addWhatsapp(list, { name: "Ana", personId: "p1", phone: "5511977770000" })).toBe("Essa pessoa já tem um número.");
+    expect(addWhatsapp(list, { name: "Bia", personId: "p2", phone: "5511988880000" })).toBe("Esse número já está na lista.");
+    expect(removeWhatsapp(list, "5511999990000")[0]).toMatchObject({ name: "Ana", primary: true });
+    expect(setPrimaryWhatsapp(list, "5511988880000").map((x) => x.primary)).toEqual([false, true]);
+  });
+  it("validação de senha", () => {
+    expect(checkPassword(true, "", "abc", "x")).toEqual({ current: "Digite sua senha atual.", next: "Use pelo menos 8 caracteres.", confirm: "As senhas não são iguais." });
+    expect(checkPassword(false, "", "segura123", "segura123")).toEqual({});
   });
 });

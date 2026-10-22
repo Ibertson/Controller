@@ -1,4 +1,4 @@
-import type { Account, Card, Category, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Recurring, Snapshot, Transaction } from "../types";
+import type { Account, Card, Category, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Profile, Recurring, Snapshot, Transaction } from "../types";
 import { emptySnapshot } from "./seed";
 
 /**
@@ -17,6 +17,15 @@ export interface Repo {
   renameSelf(name: string): Promise<void>;
   signIn(nameOrEmail: string): Promise<SignInResult>;
   signOut(): Promise<void>;
+  /** Entrar com email e senha (só no modo online, para quem já criou senha). */
+  signInWithPassword(email: string, password: string): Promise<void>;
+  /** Perfil de quem está conectado; null = ainda não carregou ou não entrou. */
+  profile(): Profile | null;
+  updateProfile(p: Partial<Pick<Profile, "phone" | "location" | "avatar" | "whatsapp">>): Promise<void>;
+  /** Cria ou troca a senha; `current` é obrigatória quando já existe uma. */
+  changePassword(current: string | null, next: string): Promise<void>;
+  /** Apaga o usuário e todos os dados dele, e sai. */
+  deleteAccount(): Promise<void>;
   /** Mensagem quando os dados não carregaram depois de entrar; null = tudo certo. */
   loadError(): string | null;
   /** Tenta carregar os dados de novo depois de um erro. */

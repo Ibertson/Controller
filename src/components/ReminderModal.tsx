@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { repo } from "@/lib/data";
+import { repo, useProfile } from "@/lib/data";
 import { today } from "@/lib/dates";
 import { REMINDER_TYPES, REPEAT_OPTIONS, formatWhatsapp, normalizeWhatsapp } from "@/lib/reminders";
 import type { Reminder, ReminderType, Snapshot } from "@/lib/types";
@@ -24,6 +24,7 @@ export function ReminderModal({ snap, item, onClose, onSaved }: {
     if (item) return item.whatsapp ? formatWhatsapp(item.whatsapp) : "";
     try { return localStorage.getItem(LAST_WA) ?? ""; } catch { return ""; }
   });
+  const saved = useProfile()?.whatsapp ?? [];
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const clear = (k: string) => setErrors((x) => ({ ...x, [k]: "" }));
@@ -83,7 +84,8 @@ export function ReminderModal({ snap, item, onClose, onSaved }: {
         </div>
         <Field label="WhatsApp para avisar (opcional)" htmlFor="rem-wa" error={errors.whatsapp}>
           <Input id="rem-wa" type="tel" inputMode="tel" autoComplete="tel" maxLength={20} placeholder="(11) 99999-9999" value={whatsapp}
-            onChange={(e) => { setWhatsapp(e.target.value); clear("whatsapp"); }} aria-invalid={!!errors.whatsapp || undefined} />
+            onChange={(e) => { setWhatsapp(e.target.value); clear("whatsapp"); }} aria-invalid={!!errors.whatsapp || undefined} list="rem-wa-saved" />
+          <datalist id="rem-wa-saved">{saved.map((w) => <option key={w.phone} value={formatWhatsapp(w.phone)}>{w.name}</option>)}</datalist>
         </Field>
         <Field label="Observações" htmlFor="rem-notes">
           <textarea id="rem-notes" rows={3} maxLength={500} className={`${inputClass} h-auto min-h-24 py-2.5`} placeholder="Anotações sobre o lembrete..."

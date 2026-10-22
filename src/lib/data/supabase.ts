@@ -2,7 +2,7 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildTransactions } from "../transactions";
-import type { Account, Card, Category, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Recurring, Snapshot, Transaction } from "../types";
+import type { Account, Card, Category, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import { emptySnapshot } from "./seed";
 
@@ -157,7 +157,8 @@ function must<T>(res: { data: T; error: { message: string } | null }): NonNullab
 export class SupabaseRepo implements Repo {
   readonly mode = "supabase" as const;
   private db: SupabaseClient;
-  private user: { id: string; name: string } | null | undefined = undefined; // undefined = ainda verificando
+  private user: { id: string; name: string; email: string | null; createdAt: string; hasPassword: boolean } | null | undefined = undefined; // undefined = ainda verificando
+  private prof: Profile | null = null;
   private data: Snapshot | null = null;
   private listeners = new Set<() => void>();
   private keys = new Set<string>();
@@ -177,9 +178,12 @@ export class SupabaseRepo implements Repo {
     this.started = true;
     this.db.auth.onAuthStateChange((_event, session) => {
       const u = session?.user;
-      if (!u) { this.user = null; this.data = null; this.failure = null; this.emit(); return; }
+      if (!u) { this.user = null; this.data = null; this.prof = null; this.failure = null; this.emit(); return; }
       if (this.user?.id === u.id && this.data) return;
-      this.user = { id: u.id, name: (u.user_metadata?.name as string) || u.email?.split("@")[0] || "você" };
+      this.user = {
+        id: u.id, name: (u.user_metadata?.name as string) || u.email?.split("@")[0] || "você",
+        email: u.email ?? null, createdAt: u.created_at, hasPassword: u.user_metadata?.has_password === true,
+      };
       // fora do callback: o supabase-js não deve ser chamado de dentro dele
       setTimeout(() => this.reload(), 0);
     });
@@ -217,6 +221,7 @@ export class SupabaseRepo implements Repo {
       this.all("investments", wsId), this.all("investment_goals", wsId), this.all("debts", wsId), this.all("reminders", wsId),
     ]);
     const w = must(ws);
+    await this.loadProfile();
     this.data = {
       workspace: { id: w.id, name: w.name, currency: "BRL" },
       accounts: accounts.map(toAccount),
@@ -234,6 +239,19 @@ export class SupabaseRepo implements Repo {
       reminders: reminders.map(toReminder),
     };
     this.emit();
+  }
+
+  /** Perfil não impede o painel de abrir: sem a linha (ou sem a tabela) usa os valores vazios. */
+  private async loadProfile() {
+    const u = this.user!;
+    const r = await this.db.from("profiles").select("phone,location,avatar,whatsapp").eq("user_id", u.id).maybeSingle();
+    if (r.error) console.error("Falha ao carregar perfil", r.error);
+    const row = (r.data ?? {}) as Row;
+    this.prof = {
+      email: u.email, memberSince: u.createdAt.slice(0, 10), hasPassword: u.hasPassword,
+      phone: (row.phone as string) ?? "", location: (row.location as string) ?? "",
+      avatar: (row.avatar as string | null) ?? null, whatsapp: (row.whatsapp as WhatsappNumber[]) ?? [],
+    };
   }
 
   /** Lê a tabela inteira do espaço em páginas (o Supabase devolve no máximo 1000 linhas por pedido). */
@@ -278,6 +296,44 @@ export class SupabaseRepo implements Repo {
     return "check_email";
   }
   async signOut() { await this.db.auth.signOut(); }
+
+  async signInWithPassword(email: string, password: string) {
+    const { error } = await this.db.auth.signInWithPassword({ email: email.trim(), password });
+    if (error) throw new Error(/invalid/i.test(error.message) ? "Email ou senha incorretos." : error.message);
+  }
+
+  profile() { this.start(); return this.prof; }
+
+  async updateProfile(p: Parameters<Repo["updateProfile"]>[0]) {
+    if (!this.user || !this.prof) throw new Error("não autenticado");
+    const next = { ...this.prof, ...p };
+    must(await this.db.from("profiles").upsert({
+      user_id: this.user.id, phone: next.phone, location: next.location, avatar: next.avatar, whatsapp: next.whatsapp,
+    }));
+    this.prof = next; this.emit();
+  }
+
+  async changePassword(current: string | null, next: string) {
+    const u = this.user;
+    if (!u || !u.email) throw new Error("não autenticado");
+    if (u.hasPassword) {
+      if (!current) throw new Error("Informe a senha atual.");
+      const check = await this.db.auth.signInWithPassword({ email: u.email, password: current });
+      if (check.error) throw new Error("A senha atual não confere.");
+    }
+    const { error } = await this.db.auth.updateUser({ password: next, data: { has_password: true } });
+    if (error) throw new Error(/different/i.test(error.message) ? "A nova senha precisa ser diferente da atual." : error.message);
+    this.user = { ...u, hasPassword: true };
+    if (this.prof) this.prof = { ...this.prof, hasPassword: true };
+    this.emit();
+  }
+
+  async deleteAccount() {
+    const { error } = await this.db.rpc("delete_my_account");
+    // PGRST202: a função ainda não foi criada no banco
+    if (error) throw new Error(error.code === "PGRST202" ? "A exclusão de conta ainda não foi ativada no banco. Nada foi apagado." : error.message);
+    await this.db.auth.signOut();
+  }
 
   async renameSelf(name: string) {
     const { error } = await this.db.auth.updateUser({ data: { name } });

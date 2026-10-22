@@ -166,3 +166,19 @@ export interface Snapshot {
   debts?: Debt[];
   reminders?: Reminder[];
 }
+
+/** Número de WhatsApp ligado ao perfil (o titular ou uma pessoa cadastrada). */
+export interface WhatsappNumber { name: string; personId: ID | null; phone: string; primary: boolean; }
+
+/** Dados de quem está conectado (não fazem parte do espaço de dados). */
+export interface Profile {
+  email: string | null;
+  /** "YYYY-MM-DD" do cadastro. */
+  memberSince: string;
+  /** Já criou senha (no modo online o acesso padrão é por link no email). */
+  hasPassword: boolean;
+  phone: string; location: string;
+  /** Foto como data URL; null = iniciais. */
+  avatar: string | null;
+  whatsapp: WhatsappNumber[];
+}

@@ -23,6 +23,10 @@ export function useSession() {
 }
 
 
+export function useProfile() {
+  return useSyncExternalStore(subscribe, () => repo.profile(), () => null);
+}
+
 export function useLoadError() {
   return useSyncExternalStore(subscribe, () => repo.loadError(), () => null);
 }
