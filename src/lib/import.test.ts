@@ -4,6 +4,7 @@ import { bulkPayments, bulkTransactions, defaultBulkRange } from "./bulk";
 import { dropForever, expiredTrash, freshSnapshot, moveFromTrash, moveToTrash, scopeIds } from "./data/repo";
 import { emptySnapshot } from "./data/seed";
 import { emptyFilters, filterStatement, statementTotals, type ExtratoFilters } from "./extrato";
+import { agendaEvents, monthClosing, pendingTotals, recurringDate } from "./previsao";
 import { filterForExport } from "./report";
 import { parseAmount, parseCsv, parseDate, parseOfx, rowsFromTable } from "./statement";
 import type { Category, Snapshot, Transaction } from "./types";
@@ -210,5 +211,39 @@ describe("subcategorias", () => {
     const snap = { categories: cats, transactions: [tx("t1", "a"), tx("t2", "a1"), tx("t3", "s")] } as unknown as Snapshot;
     const f = { ...emptyFilters("2026-10-01", "2026-10-31"), categoryId: "a" };
     expect(filterStatement(snap, f).map((t) => t.id)).toEqual(["t1", "t2"]);
+  });
+});
+
+describe("previsão", () => {
+  const base = emptySnapshot(() => Math.random().toString(36).slice(2));
+  const acc = base.accounts[0].id;
+  const tx = (o: Partial<Transaction>): Transaction => ({
+    id: Math.random().toString(36).slice(2), workspaceId: "w", kind: "expense", amountCents: 1000, occurredOn: "2026-10-10", description: "x",
+    categoryId: null, accountId: acc, toAccountId: null, cardId: null, statementMonth: null, personId: null, installmentGroupId: null,
+    installmentNumber: null, installmentTotal: null, isPaid: true, dueOn: null, source: "app", createdAt: "2026-10-01T00:00:00Z", ...o,
+  });
+  const fixo = { id: "r1", workspaceId: "w", kind: "expense" as const, description: "Aluguel", amountCents: 150000, day: 31, categoryId: null, accountId: acc, personId: null, startMonth: "2026-09-01", active: true };
+  const salario = { ...fixo, id: "r2", kind: "income" as const, description: "Salário", amountCents: 500000, day: 5 };
+  const s: Snapshot = { ...base, recurring: [fixo, salario], transactions: [
+    tx({ description: "Luz", isPaid: false, dueOn: "2026-10-15", amountCents: 20000 }),
+    tx({ kind: "income", description: "Salário out", recurringId: "r2", occurredOn: "2026-10-05", amountCents: 500000 }),
+    tx({ description: "Mercado", amountCents: 30000 }),
+  ] };
+  it("fixo usa o último dia em meses curtos", () => {
+    expect(recurringDate(fixo, "2026-11-01")).toBe("2026-11-30");
+  });
+  it("agenda mostra pendentes e fixos não lançados", () => {
+    const ev = agendaEvents(s, "2026-10-01");
+    expect(ev.map((e) => [e.date, e.label, e.type])).toEqual([["2026-10-15", "Luz", "Despesa a pagar"], ["2026-10-31", "Aluguel", "Gasto fixo"]]);
+    expect(agendaEvents(s, "2026-08-01")).toEqual([]);
+  });
+  it("fechamento separa avulsos e fixos", () => {
+    expect(monthClosing(s, "2026-10-01")).toMatchObject({
+      looseIncomeCents: 0, fixedIncomeCents: 500000, looseExpenseCents: 50000, fixedExpenseCents: 150000, resultCents: 300000,
+    });
+    expect(pendingTotals(s, "2026-10-01")).toMatchObject({ payCents: 170000, receiveCents: 0, payCount: 2 });
+  });
+  it("lançamento de fixo aparece em Pagamentos", () => {
+    expect(bulkPayments(s, { from: "2026-10-01", to: "2026-10-31", search: "", filter: "fixed_income" }).map((t) => t.description)).toEqual(["Salário out"]);
   });
 });

@@ -87,12 +87,12 @@ export class LocalRepo implements Repo {
     }));
   }
 
-  private upsert<K extends "accounts" | "cards" | "categories" | "people">(key: K, item: { id?: string }) {
-    let saved!: Snapshot[K][number];
+  private upsert<K extends "accounts" | "cards" | "categories" | "people" | "recurring">(key: K, item: { id?: string }) {
+    let saved!: NonNullable<Snapshot[K]>[number];
     this.update((d) => {
       const id = item.id ?? newId();
-      saved = { ...item, id, workspaceId: d.workspace.id } as Snapshot[K][number];
-      const list = d[key] as Snapshot[K][number][];
+      saved = { ...item, id, workspaceId: d.workspace.id } as NonNullable<Snapshot[K]>[number];
+      const list = (d[key] ?? []) as NonNullable<Snapshot[K]>[number][];
       const exists = list.some((x) => x.id === id);
       return { ...d, [key]: exists ? list.map((x) => (x.id === id ? saved : x)) : [...list, saved] };
     });
@@ -102,4 +102,11 @@ export class LocalRepo implements Repo {
   upsertCard(c: Parameters<Repo["upsertCard"]>[0]) { return this.upsert("cards", c) as ReturnType<Repo["upsertCard"]>; }
   upsertCategory(c: Parameters<Repo["upsertCategory"]>[0]) { return this.upsert("categories", c) as ReturnType<Repo["upsertCategory"]>; }
   upsertPerson(p: Parameters<Repo["upsertPerson"]>[0]) { return this.upsert("people", p) as ReturnType<Repo["upsertPerson"]>; }
+  upsertRecurring(r: Parameters<Repo["upsertRecurring"]>[0]) { return this.upsert("recurring", r) as ReturnType<Repo["upsertRecurring"]>; }
+  async deleteRecurring(id: string) {
+    this.update((d) => ({
+      ...d, recurring: (d.recurring ?? []).filter((r) => r.id !== id),
+      transactions: d.transactions.map((t) => (t.recurringId === id ? { ...t, recurringId: null } : t)),
+    }));
+  }
 }
