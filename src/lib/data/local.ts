@@ -1,8 +1,8 @@
 "use client";
 
 import { buildTransactions } from "../transactions";
-import type { Snapshot } from "../types";
-import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, type Repo, type SignInResult } from "./repo";
+import type { GoalContribution, Snapshot } from "../types";
+import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import { emptySnapshot } from "./seed";
 
 const KEY = "sobra:v1";
@@ -87,7 +87,7 @@ export class LocalRepo implements Repo {
     }));
   }
 
-  private upsert<K extends "accounts" | "cards" | "categories" | "people" | "recurring">(key: K, item: { id?: string }) {
+  private upsert<K extends "accounts" | "cards" | "categories" | "people" | "recurring" | "goals">(key: K, item: { id?: string; [k: string]: unknown }) {
     let saved!: NonNullable<Snapshot[K]>[number];
     this.update((d) => {
       const id = item.id ?? newId();
@@ -102,6 +102,19 @@ export class LocalRepo implements Repo {
   upsertCard(c: Parameters<Repo["upsertCard"]>[0]) { return this.upsert("cards", c) as ReturnType<Repo["upsertCard"]>; }
   upsertCategory(c: Parameters<Repo["upsertCategory"]>[0]) { return this.upsert("categories", c) as ReturnType<Repo["upsertCategory"]>; }
   upsertPerson(p: Parameters<Repo["upsertPerson"]>[0]) { return this.upsert("people", p) as ReturnType<Repo["upsertPerson"]>; }
+  upsertGoal(g: Parameters<Repo["upsertGoal"]>[0]) {
+    const old = (this.snapshot()?.goals ?? []).find((x) => x.id === g.id);
+    return this.upsert("goals", { ...g, createdAt: old?.createdAt ?? new Date().toISOString() }) as ReturnType<Repo["upsertGoal"]>;
+  }
+  async deleteGoal(id: string) { this.update((d) => withoutGoal(d, id)); }
+  async addContribution(c: Parameters<Repo["addContribution"]>[0]) {
+    let saved!: GoalContribution;
+    this.update((d) => {
+      saved = { ...c, id: newId(), workspaceId: d.workspace.id };
+      return { ...d, goalContributions: [...(d.goalContributions ?? []), saved] };
+    });
+    return saved;
+  }
   upsertRecurring(r: Parameters<Repo["upsertRecurring"]>[0]) { return this.upsert("recurring", r) as ReturnType<Repo["upsertRecurring"]>; }
   async deleteRecurring(id: string) {
     this.update((d) => ({

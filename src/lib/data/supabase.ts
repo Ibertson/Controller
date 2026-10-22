@@ -2,8 +2,8 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildTransactions } from "../transactions";
-import type { Account, Card, Category, NewTransactionInput, Person, Recurring, Snapshot, Transaction } from "../types";
-import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, type Repo, type SignInResult } from "./repo";
+import type { Account, Card, Category, Goal, GoalContribution, NewTransactionInput, Person, Recurring, Snapshot, Transaction } from "../types";
+import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import { emptySnapshot } from "./seed";
 
 // Banco: supabase/migrations. As colunas são snake_case; aqui viram camelCase.
@@ -65,6 +65,22 @@ const toRecurring = (r: Row): Recurring => ({
   amountCents: Number(r.amount_cents), day: r.day as number, categoryId: (r.category_id as string) ?? null,
   accountId: (r.account_id as string) ?? null, personId: (r.person_id as string) ?? null,
   startMonth: r.start_month as string, active: r.active as boolean,
+});
+const toGoal = (r: Row): Goal => ({
+  id: r.id as string, workspaceId: r.workspace_id as string, name: r.name as string, description: (r.description as string) ?? "",
+  targetCents: Number(r.target_cents), targetDate: (r.target_date as string) ?? null, status: r.status as Goal["status"],
+  category: (r.category as Goal["category"]) ?? "outro", personId: (r.person_id as string) ?? null, color: (r.color as string) ?? null,
+  image: (r.image as string) ?? null, imagePosition: (r.image_position as Goal["imagePosition"]) ?? "center",
+  createdAt: r.created_at as string, completedAt: (r.completed_at as string) ?? null,
+});
+const fromGoal = (g: Goal) => ({
+  id: g.id, workspace_id: g.workspaceId, name: g.name, description: g.description, target_cents: g.targetCents, target_date: g.targetDate,
+  status: g.status, category: g.category, person_id: g.personId, color: g.color, image: g.image, image_position: g.imagePosition,
+  completed_at: g.completedAt,
+});
+const toContribution = (r: Row): GoalContribution => ({
+  id: r.id as string, goalId: r.goal_id as string, workspaceId: r.workspace_id as string, amountCents: Number(r.amount_cents),
+  contributedOn: r.contributed_on as string, personId: (r.person_id as string) ?? null,
 });
 const fromRecurring = (r: Recurring) => ({
   id: r.id, workspace_id: r.workspaceId, kind: r.kind, description: r.description, amount_cents: r.amountCents, day: r.day,
@@ -144,10 +160,11 @@ export class SupabaseRepo implements Repo {
     }
     if (!wsId) wsId = await this.createPersonalWorkspace(uid);
 
-    const [ws, accounts, cards, categories, people, transactions, recurring] = await Promise.all([
+    const [ws, accounts, cards, categories, people, transactions, recurring, goals, contributions] = await Promise.all([
       this.db.from("workspaces").select("id,name,currency").eq("id", wsId).single(),
       this.all("accounts", wsId), this.all("cards", wsId), this.all("categories", wsId),
       this.all("people", wsId), this.all("transactions", wsId), this.all("recurring", wsId),
+      this.all("goals", wsId), this.all("goal_contributions", wsId),
     ]);
     const w = must(ws);
     this.data = {
@@ -159,6 +176,8 @@ export class SupabaseRepo implements Repo {
       transactions: transactions.map(toTransaction).filter((t) => !t.deletedAt),
       trash: transactions.map(toTransaction).filter((t) => !!t.deletedAt),
       recurring: recurring.map(toRecurring),
+      goals: goals.map(toGoal),
+      goalContributions: contributions.map(toContribution),
     };
     this.emit();
   }
@@ -272,7 +291,7 @@ export class SupabaseRepo implements Repo {
     this.set((d) => ({ ...d, transactions: d.transactions.map((t) => (t.id === id ? { ...t, isPaid: true, dueOn: null, accountId: accountId ?? t.accountId } : t)) }));
   }
 
-  private async upsert<K extends "accounts" | "cards" | "categories" | "people" | "recurring", T extends NonNullable<Snapshot[K]>[number]>(
+  private async upsert<K extends "accounts" | "cards" | "categories" | "people" | "recurring" | "goals", T extends NonNullable<Snapshot[K]>[number]>(
     key: K, item: Omit<T, "workspaceId" | "id"> & { id?: string }, toRow: (x: T) => Row,
   ): Promise<T> {
     const saved = { ...item, id: item.id ?? newId(), workspaceId: this.data!.workspace.id } as T;
@@ -287,6 +306,23 @@ export class SupabaseRepo implements Repo {
   upsertCard(c: Parameters<Repo["upsertCard"]>[0]) { return this.upsert<"cards", Card>("cards", c, fromCard); }
   upsertCategory(c: Parameters<Repo["upsertCategory"]>[0]) { return this.upsert<"categories", Category>("categories", c, fromCategory); }
   upsertPerson(p: Parameters<Repo["upsertPerson"]>[0]) { return this.upsert<"people", Person>("people", p, fromPerson); }
+  upsertGoal(g: Parameters<Repo["upsertGoal"]>[0]) {
+    const old = (this.data!.goals ?? []).find((x) => x.id === g.id);
+    return this.upsert<"goals", Goal>("goals", { ...g, createdAt: old?.createdAt ?? new Date().toISOString() }, fromGoal);
+  }
+  async deleteGoal(id: string) {
+    must(await this.db.from("goals").delete().eq("id", id));
+    this.set((d) => withoutGoal(d, id));
+  }
+  async addContribution(c: Parameters<Repo["addContribution"]>[0]) {
+    const saved: GoalContribution = { ...c, id: newId(), workspaceId: this.data!.workspace.id };
+    must(await this.db.from("goal_contributions").insert({
+      id: saved.id, goal_id: saved.goalId, workspace_id: saved.workspaceId, amount_cents: saved.amountCents,
+      contributed_on: saved.contributedOn, person_id: saved.personId,
+    }));
+    this.set((d) => ({ ...d, goalContributions: [...(d.goalContributions ?? []), saved] }));
+    return saved;
+  }
   upsertRecurring(r: Parameters<Repo["upsertRecurring"]>[0]) { return this.upsert<"recurring", Recurring>("recurring", r, fromRecurring); }
   async deleteRecurring(id: string) {
     must(await this.db.from("recurring").delete().eq("id", id));

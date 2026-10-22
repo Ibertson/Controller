@@ -5,9 +5,10 @@ import { dropForever, expiredTrash, freshSnapshot, moveFromTrash, moveToTrash, s
 import { emptySnapshot } from "./data/seed";
 import { emptyFilters, filterStatement, statementTotals, type ExtratoFilters } from "./extrato";
 import { agendaEvents, monthClosing, pendingTotals, recurringDate } from "./previsao";
+import { goalSummary, monthlyNeeded, savedByGoal } from "./goals";
 import { filterForExport } from "./report";
 import { parseAmount, parseCsv, parseDate, parseOfx, rowsFromTable } from "./statement";
-import type { Category, Snapshot, Transaction } from "./types";
+import type { Category, Goal, Snapshot, Transaction } from "./types";
 import { unzip, writeXlsx } from "./xlsx";
 
 describe("extrato", () => {
@@ -245,5 +246,24 @@ describe("previsão", () => {
   });
   it("lançamento de fixo aparece em Pagamentos", () => {
     expect(bulkPayments(s, { from: "2026-10-01", to: "2026-10-31", search: "", filter: "fixed_income" }).map((t) => t.description)).toEqual(["Salário out"]);
+  });
+});
+
+describe("metas", () => {
+  const g = (o: Partial<Goal>): Goal => ({ id: "g1", workspaceId: "w", name: "Viagem", description: "", targetCents: 100000, targetDate: null, status: "active",
+    category: "viagem", personId: null, color: null, image: "preset:viagem", imagePosition: "center", createdAt: "", completedAt: null, ...o });
+  const c = (goalId: string, amountCents: number) => ({ id: Math.random().toString(36), goalId, workspaceId: "w", amountCents, contributedOn: "2026-10-01", personId: null });
+  const s = { ...emptySnapshot(() => Math.random().toString(36).slice(2)),
+    goals: [g({}), g({ id: "g2", status: "done", targetCents: 5000 }), g({ id: "g3", status: "archived" })],
+    goalContributions: [c("g1", 30000), c("g1", -5000), c("g2", 5000), c("g3", 9999)] } as Snapshot;
+  it("soma aportes menos resgates e separa ativas e concluídas", () => {
+    expect(savedByGoal(s).get("g1")).toBe(25000);
+    const sum = goalSummary(s);
+    expect([sum.active.length, sum.done.length, sum.totalSavedCents]).toEqual([1, 1, 30000]);
+  });
+  it("calcula quanto guardar por mês até a data", () => {
+    expect(monthlyNeeded({ targetCents: 100000, targetDate: "2027-02-15" }, 25000, "2026-10-22")).toBe(18750);
+    expect(monthlyNeeded({ targetCents: 100000, targetDate: null }, 0, "2026-10-22")).toBeNull();
+    expect(monthlyNeeded({ targetCents: 100000, targetDate: "2026-10-30" }, 0, "2026-10-22")).toBe(100000);
   });
 });
