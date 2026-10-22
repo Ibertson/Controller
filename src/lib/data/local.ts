@@ -87,7 +87,7 @@ export class LocalRepo implements Repo {
     }));
   }
 
-  private upsert<K extends "accounts" | "cards" | "categories" | "people" | "recurring" | "goals">(key: K, item: { id?: string; [k: string]: unknown }) {
+  private upsert<K extends "accounts" | "cards" | "categories" | "people" | "recurring" | "goals" | "investments" | "investmentGoals">(key: K, item: { id?: string; [k: string]: unknown }) {
     let saved!: NonNullable<Snapshot[K]>[number];
     this.update((d) => {
       const id = item.id ?? newId();
@@ -116,6 +116,10 @@ export class LocalRepo implements Repo {
     return saved;
   }
   upsertRecurring(r: Parameters<Repo["upsertRecurring"]>[0]) { return this.upsert("recurring", r) as ReturnType<Repo["upsertRecurring"]>; }
+  upsertInvestment(i: Parameters<Repo["upsertInvestment"]>[0]) { return this.upsert("investments", i) as ReturnType<Repo["upsertInvestment"]>; }
+  async deleteInvestment(id: string) { this.update((d) => ({ ...d, investments: (d.investments ?? []).filter((x) => x.id !== id) })); }
+  upsertInvestmentGoal(g: Parameters<Repo["upsertInvestmentGoal"]>[0]) { return this.upsert("investmentGoals", g) as ReturnType<Repo["upsertInvestmentGoal"]>; }
+  async deleteInvestmentGoal(id: string) { this.update((d) => ({ ...d, investmentGoals: (d.investmentGoals ?? []).filter((x) => x.id !== id) })); }
   async deleteRecurring(id: string) {
     this.update((d) => ({
       ...d, recurring: (d.recurring ?? []).filter((r) => r.id !== id),
