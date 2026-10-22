@@ -302,7 +302,7 @@ describe("investimentos", () => {
 describe("dívidas", () => {
   const debt = (o: Partial<Debt>): Debt => ({ id: "d1", workspaceId: "w", name: "Carro", creditor: "Banco", type: "financiamento", totalCents: 1200000,
     installmentCents: 100000, installmentsTotal: 12, installmentsPaid: 3, startOn: "2026-10-22", dueDay: 10, interestRate: 1.5, category: null,
-    personId: null, assetDescription: "", commissionCents: 0, commissionPct: null, seller: "", assetFinalCents: null, monthsToReady: null,
+    personId: null, selfResponsible: false, assetDescription: "", commissionCents: 0, commissionPct: null, seller: "", assetFinalCents: null, monthsToReady: null,
     extraCosts: [], notes: "", createdAt: "", ...o });
   it("vence no dia escolhido a partir da data de início", () => {
     expect(installmentDue(debt({}), 1)).toBe("2026-11-10");

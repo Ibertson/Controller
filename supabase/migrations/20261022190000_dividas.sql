@@ -8,6 +8,8 @@ alter table debts add column due_day smallint not null default 10 check (due_day
 alter table debts add column interest_rate numeric(7,2);
 alter table debts add column category text check (category is null or length(category) <= 40);
 alter table debts add column person_id uuid references people(id) on delete set null;
+-- O titular da conta (que não é uma pessoa cadastrada) como responsável.
+alter table debts add column self_responsible boolean not null default false;
 alter table debts add column asset_description text not null default '' check (length(asset_description) <= 120);
 alter table debts add column commission_cents bigint not null default 0 check (commission_cents >= 0);
 alter table debts add column commission_pct numeric(6,2);

@@ -109,7 +109,7 @@ const toDebt = (r: Row): Debt => ({
   installmentsTotal: r.installments_total as number, installmentsPaid: r.installments_paid as number,
   startOn: r.start_on as string, dueDay: (r.due_day as number) ?? 10, interestRate: num(r.interest_rate),
   category: (r.category as string) ?? null, personId: (r.person_id as string) ?? null,
-  assetDescription: (r.asset_description as string) ?? "", commissionCents: Number(r.commission_cents ?? 0), commissionPct: num(r.commission_pct),
+  selfResponsible: !!r.self_responsible, assetDescription: (r.asset_description as string) ?? "", commissionCents: Number(r.commission_cents ?? 0), commissionPct: num(r.commission_pct),
   seller: (r.seller as string) ?? "", assetFinalCents: num(r.asset_final_cents), monthsToReady: num(r.months_to_ready),
   extraCosts: (r.extra_costs as Debt["extraCosts"]) ?? [], notes: (r.notes as string) ?? "", createdAt: r.created_at as string,
 });
@@ -117,6 +117,7 @@ const fromDebt = (d: Debt) => ({
   id: d.id, workspace_id: d.workspaceId, name: d.name, creditor: d.creditor || null, type: d.type, total_cents: d.totalCents,
   installment_cents: d.installmentCents, installments_total: d.installmentsTotal, installments_paid: d.installmentsPaid,
   start_on: d.startOn, due_day: d.dueDay, interest_rate: d.interestRate, category: d.category, person_id: d.personId,
+  self_responsible: d.selfResponsible,
   asset_description: d.assetDescription, commission_cents: d.commissionCents, commission_pct: d.commissionPct, seller: d.seller,
   asset_final_cents: d.assetFinalCents, months_to_ready: d.monthsToReady, extra_costs: d.extraCosts, notes: d.notes,
 });

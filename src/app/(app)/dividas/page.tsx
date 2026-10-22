@@ -5,7 +5,7 @@ import { CalendarClock, CalendarDays, CircleCheck, DollarSign, Pencil, Plus, Tra
 import { useShell } from "@/components/AppShell";
 import { DebtModal } from "@/components/DebtModal";
 import { Button, Card, Skeleton } from "@/components/ui";
-import { repo, useSnapshot } from "@/lib/data";
+import { repo, useSession, useSnapshot } from "@/lib/data";
 import { addMonths, monthOf, today } from "@/lib/dates";
 import { debtSummary, debtTypeLabel, extraCostTotals, isPaidOff, lastDue, nextDue, paidCents, remainingCents } from "@/lib/debts";
 import { formatBRL } from "@/lib/money";
@@ -18,6 +18,7 @@ const pct = (n: number) => `${n.toLocaleString("pt-BR", { minimumFractionDigits:
 export default function Dividas() {
   const snap = useSnapshot();
   const { toast } = useShell();
+  const session = useSession();
   const [view, setView] = useState<"dividas" | "financiamentos">("dividas");
   const [tab, setTab] = useState<"active" | "done">("active");
   const [form, setForm] = useState<null | { debt?: Debt }>(null);
@@ -28,7 +29,8 @@ export default function Dividas() {
   const sum = debtSummary(all);
   const active = all.filter((d) => !isPaidOff(d)), done = all.filter(isPaidOff);
   const list = (tab === "active" ? active : done).sort((a, b) => (nextDue(a) ?? "9999").localeCompare(nextDue(b) ?? "9999") || a.name.localeCompare(b.name, "pt-BR"));
-  const person = (id: string | null) => snap.people.find((p) => p.id === id)?.name;
+  const selfName = session?.name ?? "Você";
+  const person = (d: Debt) => (d.selfResponsible ? selfName : snap.people.find((p) => p.id === d.personId)?.name);
 
   async function pay(d: Debt, delta: 1 | -1) {
     const paid = Math.min(d.installmentsTotal, Math.max(0, d.installmentsPaid + delta));
@@ -100,7 +102,7 @@ export default function Dividas() {
             const late = !!next && next < today();
             const extra = extraCostTotals(d);
             const ready = d.monthsToReady ? addMonths(monthOf(d.startOn), d.monthsToReady) : null;
-            const meta = [d.creditor, d.category, person(d.personId)].filter(Boolean);
+            const meta = [d.creditor, d.category].filter(Boolean);
             return (
               <li key={d.id} className="flex flex-col gap-3 rounded-lg border border-border bg-surface-raised p-4 shadow-card">
                 <div className="flex items-start justify-between gap-2">
@@ -138,7 +140,7 @@ export default function Dividas() {
                   {next ? <span className={`flex items-center gap-1 ${late ? "font-semibold text-expense" : ""}`}><CalendarDays aria-hidden className="size-3.5" />{late ? "Atrasada desde" : "Próxima parcela"} {fmtDate(next)}</span>
                     : <span>Última parcela em {fmtDate(lastDue(d))}</span>}
                   {d.interestRate ? <span>Juros {pct(d.interestRate)} a.m.</span> : null}
-                  {person(d.personId) && <span className="flex items-center gap-1"><User aria-hidden className="size-3.5" />{person(d.personId)}</span>}
+                  {person(d) && <span className="flex items-center gap-1"><User aria-hidden className="size-3.5" />{person(d)}</span>}
                 </div>
                 {d.type === "financiamento" && (d.assetDescription || d.assetFinalCents || ready || d.extraCosts.length > 0 || d.commissionCents > 0) && (
                   <div className="flex flex-col gap-1 rounded-md bg-surface p-3 text-sm">
@@ -166,7 +168,7 @@ export default function Dividas() {
         </ul>
       )}
 
-      {form && <DebtModal snap={snap} debt={form.debt} defaultType="financiamento"
+      {form && <DebtModal snap={snap} debt={form.debt} selfName={selfName} defaultType="financiamento"
         onClose={() => setForm(null)} onSaved={(m) => toast(m)} />}
     </div>
   );

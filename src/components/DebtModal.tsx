@@ -38,11 +38,14 @@ function Stepper({ id, value, onChange, min, max, label }: { id: string; value: 
   );
 }
 
+/** Valor do titular no select de responsável. */
+const SELF = "self";
+
 interface ExtraRow { name: string; amount: string; frequency: DebtExtraCost["frequency"]; }
 
 /** Adicionar ou editar uma dívida parcelada. */
-export function DebtModal({ snap, debt, defaultType = "financiamento", onClose, onSaved }: {
-  snap: Snapshot; debt?: Debt; defaultType?: DebtType; onClose: () => void; onSaved: (msg: string) => void;
+export function DebtModal({ snap, debt, selfName, defaultType = "financiamento", onClose, onSaved }: {
+  snap: Snapshot; debt?: Debt; selfName: string; defaultType?: DebtType; onClose: () => void; onSaved: (msg: string) => void;
 }) {
   const [name, setName] = useState(debt?.name ?? "");
   const [creditor, setCreditor] = useState(debt?.creditor ?? "");
@@ -57,7 +60,7 @@ export function DebtModal({ snap, debt, defaultType = "financiamento", onClose, 
   const [dueDay, setDueDay] = useState(String(debt?.dueDay ?? 10));
   const [rate, setRate] = useState(pctText(debt?.interestRate ?? 0));
   const [category, setCategory] = useState(debt?.category ?? "");
-  const [personId, setPersonId] = useState(debt?.personId ?? "");
+  const [personId, setPersonId] = useState(debt?.selfResponsible ? SELF : debt?.personId ?? "");
   const [asset, setAsset] = useState(debt?.assetDescription ?? "");
   const [commission, setCommission] = useState(centsText(debt?.commissionCents));
   const [commissionPct, setCommissionPct] = useState(pctText(debt?.commissionPct ?? 5));
@@ -114,7 +117,7 @@ export function DebtModal({ snap, debt, defaultType = "financiamento", onClose, 
         id: debt?.id, name: name.trim(), creditor: creditor.trim(), type,
         totalCents: totalCents!, installmentCents: instCents!, installmentsTotal: n, installmentsPaid: p,
         startOn: start, dueDay: d, interestRate: rateNum ? Math.round(rateNum * 100) / 100 : null,
-        category: category || null, personId: personId || null,
+        category: category || null, personId: personId && personId !== SELF ? personId : null, selfResponsible: personId === SELF,
         assetDescription: financing ? asset.trim() : "", commissionCents: financing ? parseBRL(commission) ?? 0 : 0,
         commissionPct: financing && pctNum != null ? Math.round(pctNum * 100) / 100 : null, seller: financing ? seller.trim() : "",
         assetFinalCents: financing ? parseBRL(assetFinal) || null : null, monthsToReady: financing && m ? m : null,
@@ -188,6 +191,7 @@ export function DebtModal({ snap, debt, defaultType = "financiamento", onClose, 
         <Field label="Pessoa Responsável (opcional)" htmlFor="debt-person">
           <select id="debt-person" className={inputClass} value={personId} onChange={(e) => setPersonId(e.target.value)}>
             <option value="">Nenhuma</option>
+            <option value={SELF}>{selfName}</option>
             {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </Field>

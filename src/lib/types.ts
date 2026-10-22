@@ -123,6 +123,8 @@ export interface Debt {
   /** Juros ao mês, em %. */
   interestRate: number | null;
   category: string | null; personId: ID | null;
+  /** O titular da conta é o responsável (personId fica null). */
+  selfResponsible: boolean;
   /** Detalhes do financiamento (vazios nos outros tipos). */
   assetDescription: string; commissionCents: number; commissionPct: number | null; seller: string;
   assetFinalCents: number | null; monthsToReady: number | null; extraCosts: DebtExtraCost[];
