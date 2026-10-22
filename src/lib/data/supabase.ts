@@ -124,11 +124,12 @@ const fromDebt = (d: Debt) => ({
 const toReminder = (r: Row): Reminder => ({
   id: r.id as string, workspaceId: r.workspace_id as string, title: r.title as string, type: r.type as Reminder["type"],
   dueOn: r.due_on as string, repeatDays: Number(r.repeat_days ?? 0) as Reminder["repeatDays"], personId: (r.person_id as string) ?? null,
-  notes: (r.notes as string) ?? "", doneAt: (r.done_at as string) ?? null, lastDoneOn: (r.last_done_on as string) ?? null,
+  notes: (r.notes as string) ?? "", whatsapp: (r.whatsapp as string) ?? null,
+  doneAt: (r.done_at as string) ?? null, lastDoneOn: (r.last_done_on as string) ?? null,
 });
 const fromReminder = (x: Reminder) => ({
   id: x.id, workspace_id: x.workspaceId, title: x.title, type: x.type, due_on: x.dueOn, repeat_days: x.repeatDays,
-  person_id: x.personId, notes: x.notes, done_at: x.doneAt, last_done_on: x.lastDoneOn,
+  person_id: x.personId, notes: x.notes, whatsapp: x.whatsapp, done_at: x.doneAt, last_done_on: x.lastDoneOn,
 });
 const fromRecurring = (r: Recurring) => ({
   id: r.id, workspace_id: r.workspaceId, kind: r.kind, description: r.description, amount_cents: r.amountCents, day: r.day,

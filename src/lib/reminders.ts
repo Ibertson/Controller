@@ -33,3 +33,28 @@ export function completeReminder(r: Reminder, todayStr: string, nowIso: string):
   if (!r.repeatDays) return { ...r, doneAt: nowIso, lastDoneOn: todayStr };
   return { ...r, dueOn: addDays(todayStr, r.repeatDays), lastDoneOn: todayStr, doneAt: null };
 }
+
+/** Só dígitos; número brasileiro sem DDI (10 ou 11 dígitos) ganha o 55. null se vazio ou inválido. */
+export function normalizeWhatsapp(input: string): string | null {
+  let d = input.replace(/\D/g, "");
+  if (d.length === 10 || d.length === 11) d = "55" + d;
+  return /^\d{12,15}$/.test(d) ? d : null;
+}
+
+/** "+55 (11) 99999-9999" para mostrar um número salvo. */
+export function formatWhatsapp(d: string): string {
+  const m = /^55(\d{2})(\d{4,5})(\d{4})$/.exec(d);
+  return m ? `+55 (${m[1]}) ${m[2]}-${m[3]}` : `+${d}`;
+}
+
+/** Texto do lembrete para o WhatsApp. */
+export function reminderMessage(r: Pick<Reminder, "title" | "type" | "dueOn" | "repeatDays" | "notes">, todayStr: string): string {
+  const [y, m, d] = r.dueOn.split("-");
+  const lines = [`🔔 Lembrete: ${r.title}`, `${reminderTypeLabel(r.type)} · ${d}/${m}/${y} (${dueStatus(r.dueOn, todayStr).label.toLowerCase()})`];
+  if (r.repeatDays) lines.push(`Repete ${repeatLabel(r.repeatDays).toLowerCase()}`);
+  if (r.notes) lines.push(r.notes);
+  return lines.join("\n");
+}
+
+/** Link que abre o WhatsApp com a mensagem pronta (sem número, o WhatsApp pede o contato). */
+export const whatsappLink = (text: string, phone: string | null) => `https://wa.me/${phone ?? ""}?text=${encodeURIComponent(text)}`;

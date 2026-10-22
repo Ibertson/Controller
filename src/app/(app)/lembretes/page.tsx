@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, Bike, Car, CircleCheck, Hammer, House, Pencil, Plus, Repeat, RotateCcw, Trash2, User, Wrench, type LucideIcon } from "lucide-react";
+import { Bell, Bike, Car, CircleCheck, Hammer, House, MessageCircle, Pencil, Plus, Repeat, RotateCcw, Trash2, User, Wrench, type LucideIcon } from "lucide-react";
 import { useShell } from "@/components/AppShell";
 import { ReminderModal } from "@/components/ReminderModal";
 import { Button, Card, Skeleton } from "@/components/ui";
 import { repo, useSnapshot } from "@/lib/data";
 import { today } from "@/lib/dates";
-import { completeReminder, dueStatus, reminderTypeLabel, repeatLabel } from "@/lib/reminders";
+import { completeReminder, dueStatus, formatWhatsapp, reminderMessage, reminderTypeLabel, repeatLabel, whatsappLink } from "@/lib/reminders";
 import type { Reminder, ReminderType } from "@/lib/types";
 
 const TYPE_ICON: Record<ReminderType, LucideIcon> = { casa: House, reforma: Hammer, manutencao: Wrench, carro: Car, moto: Bike, outro: Bell };
@@ -96,6 +96,7 @@ export default function Lembretes() {
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted">
                     {r.repeatDays > 0 && <span className="flex items-center gap-1"><Repeat aria-hidden className="size-3.5" />{repeatLabel(r.repeatDays)}</span>}
                     <span className="flex items-center gap-1"><User aria-hidden className="size-3.5" />{person(r.personId)}</span>
+                    {r.whatsapp && <span className="flex items-center gap-1"><MessageCircle aria-hidden className="size-3.5" />{formatWhatsapp(r.whatsapp)}</span>}
                     {r.lastDoneOn && <span>Feito em {fmtDate(r.lastDoneOn)}</span>}
                   </div>
                   {r.notes && <p className="line-clamp-2 text-sm text-text-muted">{r.notes}</p>}
@@ -103,6 +104,12 @@ export default function Lembretes() {
                     {r.doneAt
                       ? <Button size="sm" variant="secondary" onClick={() => void reopen(r)}><RotateCcw aria-hidden className="size-4" />Reabrir</Button>
                       : <Button size="sm" onClick={() => void complete(r)}><CircleCheck aria-hidden className="size-4" />{r.repeatDays ? "Feito" : "Concluir"}</Button>}
+                    {!r.doneAt && (
+                      <a href={whatsappLink(reminderMessage(r, now), r.whatsapp)} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-sm font-medium hover:bg-surface">
+                        <MessageCircle aria-hidden className="size-4" />Enviar no WhatsApp
+                      </a>
+                    )}
                     <span className="ml-auto flex gap-1">
                       <button type="button" aria-label={`Editar ${r.title}`} title="Editar" onClick={() => setForm({ item: r })}
                         className="grid size-8 place-items-center rounded-md text-text-muted hover:bg-surface hover:text-text"><Pencil aria-hidden className="size-4" /></button>

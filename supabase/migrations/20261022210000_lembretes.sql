@@ -9,6 +9,8 @@ create table reminders (
   repeat_days smallint not null default 0 check (repeat_days in (0, 30, 90, 180, 365)),
   -- null = conta principal
   person_id uuid references people(id) on delete set null,
+  -- número para o botão "Enviar no WhatsApp" (só dígitos, com DDI), opcional
+  whatsapp text check (whatsapp ~ '^[0-9]{10,15}$'),
   notes text not null default '' check (length(notes) <= 500),
   done_at timestamptz,
   last_done_on date,

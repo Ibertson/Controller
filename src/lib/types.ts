@@ -140,6 +140,8 @@ export interface Reminder {
   repeatDays: 0 | 30 | 90 | 180 | 365;
   /** null = conta principal. */
   personId: ID | null; notes: string;
+  /** Número (só dígitos, com DDI) para enviar pelo WhatsApp; null = escolher o contato no WhatsApp. */
+  whatsapp: string | null;
   doneAt: string | null; lastDoneOn: string | null;
 }
 

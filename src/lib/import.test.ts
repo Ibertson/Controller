@@ -7,7 +7,7 @@ import { emptyFilters, filterStatement, statementTotals, type ExtratoFilters } f
 import { agendaEvents, monthClosing, pendingTotals, recurringDate } from "./previsao";
 import { goalSummary, monthlyNeeded, savedByGoal } from "./goals";
 import { debtSummary, extraCostTotals, installmentDue, isPaidOff, nextDue } from "./debts";
-import { addDays, completeReminder, dueStatus } from "./reminders";
+import { addDays, completeReminder, dueStatus, formatWhatsapp, normalizeWhatsapp, reminderMessage, whatsappLink } from "./reminders";
 import { distributionByType, evolutionMonths, goalProgress, investedByMonth, investmentTotals, matchesSearch, returnPct } from "./investments";
 import { filterForExport } from "./report";
 import { parseAmount, parseCsv, parseDate, parseOfx, rowsFromTable } from "./statement";
@@ -325,7 +325,7 @@ describe("dívidas", () => {
 });
 
 describe("lembretes", () => {
-  const r: Reminder = { id: "r", workspaceId: "w", title: "Óleo", type: "carro", dueOn: "2026-10-20", repeatDays: 90, personId: null, notes: "", doneAt: null, lastDoneOn: null };
+  const r: Reminder = { id: "r", workspaceId: "w", title: "Óleo", type: "carro", dueOn: "2026-10-20", repeatDays: 90, personId: null, notes: "", whatsapp: null, doneAt: null, lastDoneOn: null };
   it("mostra a situação pela data", () => {
     expect(dueStatus("2026-10-20", "2026-10-22")).toEqual({ tone: "late", label: "Vencido há 2 dias" });
     expect(dueStatus("2026-10-22", "2026-10-22").label).toBe("Vence hoje");
@@ -336,5 +336,22 @@ describe("lembretes", () => {
   it("concluir repete a partir de hoje ou encerra", () => {
     expect(completeReminder(r, "2026-10-22", "x")).toMatchObject({ dueOn: "2027-01-20", lastDoneOn: "2026-10-22", doneAt: null });
     expect(completeReminder({ ...r, repeatDays: 0 }, "2026-10-22", "x")).toMatchObject({ dueOn: "2026-10-20", doneAt: "x" });
+  });
+});
+
+describe("lembretes no WhatsApp", () => {
+  it("normaliza número brasileiro e rejeita inválidos", () => {
+    expect(normalizeWhatsapp("(11) 99999-8888")).toBe("5511999998888");
+    expect(normalizeWhatsapp("+55 11 3333-4444")).toBe("551133334444");
+    expect(normalizeWhatsapp("1234")).toBeNull();
+    expect(formatWhatsapp("5511999998888")).toBe("+55 (11) 99999-8888");
+  });
+  it("monta a mensagem e o link", () => {
+    const msg = reminderMessage({ title: "Troca de óleo", type: "carro", dueOn: "2026-10-25", repeatDays: 180, notes: "Oficina do Zé" }, "2026-10-22");
+    expect(msg).toContain("🔔 Lembrete: Troca de óleo");
+    expect(msg).toContain("25/10/2026");
+    expect(msg).toContain("Oficina do Zé");
+    expect(whatsappLink("oi & tchau", "5511999998888")).toBe("https://wa.me/5511999998888?text=oi%20%26%20tchau");
+    expect(whatsappLink("oi", null)).toBe("https://wa.me/?text=oi");
   });
 });
