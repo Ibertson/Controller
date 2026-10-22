@@ -5,8 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import {
   Bell, Car, CircleDollarSign, CircleUserRound, FileText, Heart, PlayCircle, TrendingUp, WalletCards,
-  ChevronDown, ChevronLeft, ChevronRight, CreditCard, Flag, HandCoins, Home, Landmark, ListOrdered, Menu, Plus, Tags, Users,
-  CalendarCheck, X,
+  ChevronDown, ChevronLeft, ChevronRight, CreditCard, Flag, HandCoins, Home, Landmark, ListOrdered, Menu, Plus, Tags,
+  X,
 } from "lucide-react";
 import { addMonths, monthLabel, monthOf, today } from "@/lib/dates";
 import { defaultCategoryChanges } from "@/lib/categories";
@@ -41,7 +41,6 @@ const nav = [
     { href: "/previsao", label: "Previsão", icon: WalletCards },
     { href: "/categorias", label: "Categorias", icon: Tags },
     { href: "/metas", label: "Metas", icon: Flag },
-    { href: "/fechamento", label: "Fechar o mês", icon: CalendarCheck },
   ] },
   { group: "Mais", items: [
     { href: "/investimentos", label: "Investimentos", icon: TrendingUp },
@@ -49,7 +48,6 @@ const nav = [
     { href: "/lembretes", label: "Lembretes", icon: Bell },
     { href: "/veiculos", label: "Veículos", icon: Car },
     { href: "/desejos", label: "Lista de desejos", icon: Heart },
-    { href: "/pessoas", label: "Pessoas", icon: Users },
   ] },
   { group: "Ajuda", items: [
     { href: "/tutorial", label: "Tutorial", icon: PlayCircle },
