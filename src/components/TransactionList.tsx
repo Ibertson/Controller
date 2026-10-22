@@ -44,7 +44,7 @@ export function TransactionList({ snap, items, onDeleted }: { snap: Snapshot; it
               const title = t.description || cat?.name || (t.kind === "transfer" ? "Transferência" : "Sem descrição");
               return (
                 <li key={t.id} className="group flex items-center gap-3 border-b border-border py-2.5 last:border-0">
-                  <CategoryIcon name={t.kind === "transfer" ? "transfer" : cat?.icon} />
+                  <CategoryIcon name={t.kind === "transfer" ? "transfer" : cat?.icon} color={t.kind === "transfer" ? null : cat?.color} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="truncate">{title}</span>

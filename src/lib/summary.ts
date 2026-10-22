@@ -1,3 +1,4 @@
+import { categoryFits } from "./categories";
 import type { Snapshot, Transaction } from "./types";
 
 /** Saldo atual de cada conta: saldo inicial + movimentos pagos (mesma regra da visão account_balances). */
@@ -49,15 +50,26 @@ export function projectedLeftover(s: Snapshot, month: string): number {
   return totalBalance(s) + totals.pendingIncomeCents - totals.pendingExpenseCents - Math.max(0, cardThisMonth - cardPaid);
 }
 
+/** Id da categoria pai, quando `id` é uma subcategoria cujo pai ainda existe. */
+function parentOf(s: Snapshot, id: string): string | null {
+  const p = s.categories.find((c) => c.id === id)?.parentId;
+  return p && s.categories.some((c) => c.id === p) ? p : null;
+}
+
 export interface CategoryUsage { categoryId: string; spentCents: number; limitCents: number | null; ratio: number | null; }
 
 export function categoryUsage(s: Snapshot, month: string): CategoryUsage[] {
   const spent = new Map<string, number>();
   for (const t of monthTransactions(s, month)) {
-    if (t.kind === "expense" && t.categoryId) spent.set(t.categoryId, (spent.get(t.categoryId) ?? 0) + t.amountCents);
+    if (t.kind !== "expense" || !t.categoryId) continue;
+    spent.set(t.categoryId, (spent.get(t.categoryId) ?? 0) + t.amountCents);
+    // O gasto da subcategoria também conta no limite da categoria pai.
+    const parent = parentOf(s, t.categoryId);
+    if (parent) spent.set(parent, (spent.get(parent) ?? 0) + t.amountCents);
   }
   return s.categories
-    .filter((c) => c.kind === "expense" && !c.archived && (spent.has(c.id) || c.monthlyLimitCents))
+    // Subcategoria só aparece sozinha quando tem limite próprio; senão já está somada no pai.
+    .filter((c) => categoryFits(c, "expense") && !c.archived && (c.parentId && parentOf(s, c.id) ? !!c.monthlyLimitCents : spent.has(c.id) || c.monthlyLimitCents))
     .map((c) => {
       const spentCents = spent.get(c.id) ?? 0;
       return { categoryId: c.id, spentCents, limitCents: c.monthlyLimitCents, ratio: c.monthlyLimitCents ? spentCents / c.monthlyLimitCents : null };
@@ -129,7 +141,7 @@ export function totalsByCategory(s: Snapshot, month: string, kind: "expense" | "
   const sums = new Map<string, number>();
   for (const t of monthTransactions(s, month)) {
     if (t.kind !== kind) continue;
-    const key = t.categoryId ?? "";
+    const key = (t.categoryId && parentOf(s, t.categoryId)) || t.categoryId || "";
     sums.set(key, (sums.get(key) ?? 0) + t.amountCents);
   }
   const name = (id: string) => s.categories.find((c) => c.id === id)?.name ?? "Outros";

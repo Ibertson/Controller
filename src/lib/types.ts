@@ -3,7 +3,8 @@
 export type ID = string;
 
 export type AccountKind = "checking" | "savings" | "wallet" | "other";
-export type CategoryKind = "expense" | "income";
+/** "both": aparece em despesas e em receitas. */
+export type CategoryKind = "expense" | "income" | "both";
 export type TransactionKind = "expense" | "income" | "transfer" | "card_payment";
 
 export interface Workspace { id: ID; name: string; currency: "BRL"; }
@@ -22,7 +23,12 @@ export interface Card {
 
 export interface Category {
   id: ID; workspaceId: ID; name: string; icon: string; kind: CategoryKind;
+  /** Despesa: limite de gastos do mês. Receita: meta de receita do mês. */
   monthlyLimitCents: number | null; archived: boolean;
+  /** Cor do ícone (hex); ausente = cor padrão do app. */
+  color?: string | null;
+  /** Subcategoria: id da categoria pai (herda o tipo dela). */
+  parentId?: string | null;
 }
 
 export interface Person { id: ID; workspaceId: ID; name: string; monthlyLimitCents: number | null; archived: boolean; }

@@ -30,10 +30,12 @@ const fromCard = (c: Card) => ({
 const toCategory = (r: Row): Category => ({
   id: r.id as string, workspaceId: r.workspace_id as string, name: r.name as string, icon: (r.icon as string) ?? "",
   kind: r.kind as Category["kind"], monthlyLimitCents: r.monthly_limit_cents == null ? null : Number(r.monthly_limit_cents),
-  archived: r.archived as boolean,
+  archived: r.archived as boolean, color: (r.color as string | null) ?? null,
+  parentId: (r.parent_id as string | null) ?? null,
 });
 const fromCategory = (c: Category) => ({
-  id: c.id, workspace_id: c.workspaceId, name: c.name, icon: c.icon, kind: c.kind, monthly_limit_cents: c.monthlyLimitCents, archived: c.archived,
+  id: c.id, workspace_id: c.workspaceId, name: c.name, icon: c.icon, kind: c.kind, monthly_limit_cents: c.monthlyLimitCents, archived: c.archived, color: c.color ?? null,
+  parent_id: c.parentId ?? null,
 });
 const toPerson = (r: Row): Person => ({
   id: r.id as string, workspaceId: r.workspace_id as string, name: r.name as string,
