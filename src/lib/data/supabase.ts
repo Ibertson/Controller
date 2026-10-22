@@ -330,7 +330,8 @@ export class SupabaseRepo implements Repo {
 
   async deleteAccount() {
     const { error } = await this.db.rpc("delete_my_account");
-    if (error) throw new Error(error.message);
+    // PGRST202: a função ainda não foi criada no banco
+    if (error) throw new Error(error.code === "PGRST202" ? "A exclusão de conta ainda não foi ativada no banco. Nada foi apagado." : error.message);
     await this.db.auth.signOut();
   }
 
