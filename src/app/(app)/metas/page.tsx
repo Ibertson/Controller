@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, CircleCheck, Flag, Minus, Pencil, PiggyBank, Plus, RotateCcw, Trash2, Trophy, User } from "lucide-react";
+import { CalendarDays, CircleCheck, Minus, Pencil, Plus, RotateCcw, Target, Trash2, TrendingUp, Trophy, User } from "lucide-react";
 import { useShell } from "@/components/AppShell";
 import { ContributionModal, GoalArt, GoalForm } from "@/components/GoalModals";
-import { Button, Card, EmptyState, PageTitle, Skeleton } from "@/components/ui";
+import { Button, Card, Skeleton } from "@/components/ui";
 import { repo, useSnapshot } from "@/lib/data";
 import { today } from "@/lib/dates";
 import { goalCategoryLabel, goalSummary, monthlyNeeded, savedByGoal } from "@/lib/goals";
@@ -39,21 +39,12 @@ export default function Metas() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageTitle actions={<Button onClick={() => setForm({})}><Plus aria-hidden className="size-4" />Adicionar Meta</Button>}>Minhas Metas</PageTitle>
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Card className="flex items-center gap-3">
-          <span className="grid size-11 place-items-center rounded-pill bg-income/15 text-income"><PiggyBank aria-hidden className="size-5" /></span>
-          <div><p className="text-sm text-text-muted">Total economizado</p><p className="num text-2xl font-bold text-income">{formatBRL(sum.totalSavedCents)}</p></div>
-        </Card>
-        <Card className="flex items-center gap-3">
-          <span className="grid size-11 place-items-center rounded-pill bg-accent-soft text-accent"><Flag aria-hidden className="size-5" /></span>
-          <div><p className="text-sm text-text-muted">Metas ativas</p><p className="num text-2xl font-bold">{sum.active.length}</p></div>
-        </Card>
-        <Card className="flex items-center gap-3">
-          <span className="grid size-11 place-items-center rounded-pill bg-surface text-text-muted"><Trophy aria-hidden className="size-5" /></span>
-          <div><p className="text-sm text-text-muted">Concluídas</p><p className="num text-2xl font-bold">{sum.done.length}</p></div>
-        </Card>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Minhas Metas</h1>
+          <p className="text-sm text-text-muted">Gerencie suas metas financeiras e acompanhe seu progresso</p>
+        </div>
+        <Button onClick={() => setForm({})}><Plus aria-hidden className="size-4" />Nova Meta</Button>
       </div>
 
       <div role="tablist" aria-label="Metas" className="grid grid-cols-2 gap-1 rounded-md bg-surface p-1 sm:w-80">
@@ -64,10 +55,11 @@ export default function Metas() {
       </div>
 
       {!list.length ? (
-        <Card>
-          <EmptyState icon={tab === "active" ? Flag : Trophy}
-            title={tab === "active" ? "Nenhuma meta ativa. Para que você está guardando dinheiro?" : "Nenhuma meta concluída ainda."}
-            action={tab === "active" ? <Button onClick={() => setForm({})}><Plus aria-hidden className="size-4" />Adicionar Meta</Button> : undefined} />
+        <Card className="flex flex-col items-center gap-2 py-12 text-center">
+          {tab === "active" ? <Target aria-hidden className="size-14 text-text-muted" strokeWidth={1.75} /> : <Trophy aria-hidden className="size-14 text-text-muted" strokeWidth={1.75} />}
+          <p className="mt-2 font-semibold">{tab === "active" ? "Nenhuma meta ativa" : "Nenhuma meta concluída"}</p>
+          <p className="text-sm text-text-muted">{tab === "active" ? "Crie sua primeira meta financeira" : "Quando você concluir uma meta, ela aparece aqui"}</p>
+          {tab === "active" && <Button className="mt-3" onClick={() => setForm({})}><Plus aria-hidden className="size-4" />Nova Meta</Button>}
         </Card>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -128,6 +120,17 @@ export default function Metas() {
           })}
         </ul>
       )}
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        {([["Metas Ativas", String(sum.active.length), Target, "text-expense"],
+          ["Concluídas", String(sum.done.length), CircleCheck, "text-income"],
+          ["Total Economizado", formatBRL(sum.totalSavedCents), TrendingUp, "text-income"]] as const).map(([label, value, Icon, tone]) => (
+          <Card key={label} className="flex items-center justify-between gap-3">
+            <div><p className="text-sm text-text-muted">{label}</p><p className="num text-2xl font-bold">{value}</p></div>
+            <Icon aria-hidden className={`size-7 shrink-0 ${tone}`} />
+          </Card>
+        ))}
+      </div>
 
       {form && <GoalForm snap={snap} goal={form.goal} onClose={() => setForm(null)} onSaved={(m) => toast(m)} />}
       {move && (
