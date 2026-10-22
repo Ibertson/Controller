@@ -44,3 +44,36 @@ export function defaultCategoryChanges(existing: Category[]): CategoryChange[] {
   DEFAULT_INCOME.forEach(add("income"));
   return out;
 }
+
+/** A categoria vale para este lado (despesas ou receitas)? "Ambos" vale para os dois. */
+export const categoryFits = (c: Pick<Category, "kind">, side: "expense" | "income") => c.kind === side || c.kind === "both";
+
+/** Ícones da tela "Nova categoria": chave (nome do Lucide) e rótulo. */
+export const CATEGORY_ICONS: Def[] = [
+  ["house", "Casa"], ["car", "Carro"], ["shopping-cart", "Compras"], ["dumbbell", "Fitness"],
+  ["party-popper", "Festa"], ["graduation-cap", "Educação"], ["utensils", "Comida"], ["coffee", "Café"],
+  ["shirt", "Roupas"], ["plane", "Viagem"], ["fuel", "Combustível"], ["pill", "Farmácia"],
+  ["smile", "Dental"], ["sparkles", "Beleza"], ["hand", "Manicure"], ["scissors", "Barbearia"],
+  ["tv", "Streaming"], ["share-2", "Redes Sociais"], ["gamepad-2", "Jogos"], ["music", "Música"],
+  ["book-open", "Livros"], ["paw-print", "Pet"], ["baby", "Bebê"], ["hammer", "Ferramentas"],
+  ["wrench", "Manutenção"], ["truck", "Mudança"], ["gem", "Casamento"], ["landmark", "Finanças"],
+  ["trending-up", "Investimentos"], ["briefcase-business", "Negócios"], ["briefcase", "Profissional"], ["bus", "Transporte"],
+  ["receipt", "Contas"], ["school", "Faculdade"], ["hand-coins", "Dívidas"], ["percent", "Impostos"],
+  ["droplet", "Água"], ["shopping-bag", "Shopping"], ["clapperboard", "Lazer"], ["car-taxi-front", "Táxi"],
+  ["utensils-crossed", "Restaurante"], ["piggy-bank", "Poupança"], ["coins", "Moeda"], ["venus", "Mulher"],
+  ["mars", "Homem"], ["church", "Igreja"], ["flower-2", "Funerária"], ["lightbulb", "Conta de Luz"],
+];
+
+/** Cores da tela "Nova categoria". */
+export const CATEGORY_COLORS = [
+  "#e055b0", "#ea962a", "#e6df2c", "#6fd35e", "#2d4fd6", "#7b2fe0",
+  "#d6281f", "#222222", "#4fdcd6", "#6b3a1e", "#cfcde3", "#3fae5a",
+  "#e9cba7", "#74b8e0", "#e3bd1f", "#a9a9a9", "#6e1a22",
+];
+
+/** Texto escuro ou claro sobre a cor (luminância relativa). */
+export function inkOn(hex: string): "#121a17" | "#ffffff" {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.2 ? "#121a17" : "#ffffff";
+}

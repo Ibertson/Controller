@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { X } from "lucide-react";
+import { categoryFits } from "@/lib/categories";
 import { repo, useSnapshot } from "@/lib/data";
 import { formatBRL, parseBRL, splitInstallments } from "@/lib/money";
 import { monthLabel, statementMonthFor, today } from "@/lib/dates";
@@ -35,7 +36,7 @@ export function TransactionModal({ initialKind = "expense", onClose, onSaved }:
 
   const accounts = snap?.accounts.filter((a) => !a.archived) ?? [];
   const cards = snap?.cards.filter((c) => !c.archived) ?? [];
-  const categories = snap?.categories.filter((c) => !c.archived && c.kind === (kind === "income" ? "income" : "expense")) ?? [];
+  const categories = snap?.categories.filter((c) => !c.archived && categoryFits(c, kind === "income" ? "income" : "expense")) ?? [];
   const people = snap?.people.filter((p) => !p.archived) ?? [];
 
   useEffect(() => { amountRef.current?.focus(); }, []);

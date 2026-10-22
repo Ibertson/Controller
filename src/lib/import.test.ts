@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_EXPENSE, DEFAULT_INCOME, defaultCategoryChanges } from "./categories";
+import { CATEGORY_ICONS, DEFAULT_EXPENSE, DEFAULT_INCOME, categoryFits, defaultCategoryChanges, inkOn } from "./categories";
 import { bulkPayments, bulkTransactions, defaultBulkRange } from "./bulk";
 import { dropForever, expiredTrash, freshSnapshot, moveFromTrash, moveToTrash, scopeIds } from "./data/repo";
 import { emptySnapshot } from "./data/seed";
@@ -175,5 +175,18 @@ describe("excluir em massa e resetar", () => {
   it("lixeira expira em 30 dias", () => {
     const trash = [tx({ id: "velho", deletedAt: "2026-09-01T00:00:00Z" }), tx({ id: "novo", deletedAt: "2026-10-20T00:00:00Z" })];
     expect(expiredTrash(trash, new Date("2026-10-21T12:00:00Z"))).toEqual(["velho"]);
+  });
+});
+
+describe("nova categoria", () => {
+  it("Ambos aparece em despesas e receitas", () => {
+    expect(categoryFits({ kind: "both" }, "expense")).toBe(true);
+    expect(categoryFits({ kind: "both" }, "income")).toBe(true);
+    expect(categoryFits({ kind: "income" }, "expense")).toBe(false);
+  });
+  it("tem 48 ícones sem repetir e cor de texto legível", () => {
+    expect(new Set(CATEGORY_ICONS.map(([k]) => k)).size).toBe(48);
+    expect(inkOn("#222222")).toBe("#ffffff");
+    expect(inkOn("#e6df2c")).toBe("#121a17");
   });
 });

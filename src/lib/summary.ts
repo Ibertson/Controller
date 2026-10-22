@@ -1,3 +1,4 @@
+import { categoryFits } from "./categories";
 import type { Snapshot, Transaction } from "./types";
 
 /** Saldo atual de cada conta: saldo inicial + movimentos pagos (mesma regra da visão account_balances). */
@@ -57,7 +58,7 @@ export function categoryUsage(s: Snapshot, month: string): CategoryUsage[] {
     if (t.kind === "expense" && t.categoryId) spent.set(t.categoryId, (spent.get(t.categoryId) ?? 0) + t.amountCents);
   }
   return s.categories
-    .filter((c) => c.kind === "expense" && !c.archived && (spent.has(c.id) || c.monthlyLimitCents))
+    .filter((c) => categoryFits(c, "expense") && !c.archived && (spent.has(c.id) || c.monthlyLimitCents))
     .map((c) => {
       const spentCents = spent.get(c.id) ?? 0;
       return { categoryId: c.id, spentCents, limitCents: c.monthlyLimitCents, ratio: c.monthlyLimitCents ? spentCents / c.monthlyLimitCents : null };
