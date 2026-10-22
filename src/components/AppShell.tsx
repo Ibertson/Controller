@@ -184,6 +184,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const month = chosenMonth ?? monthOf(today());
   // No painel o mês é escolhido nos botões de mês da própria página.
   const showMonth = ["/extrato", "/categorias", "/fechamento"].includes(path);
+  // Lembretes não lida com dinheiro, então o botão de lançamento sai do topo e do celular.
+  const showNew = !path.startsWith("/lembretes");
 
   return (
     <ShellCtx.Provider value={{ month, setMonth, openNew, toast }}>
@@ -217,9 +219,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </div>
               ) : <span className="font-semibold lg:hidden">Sobra</span>}
             </div>
-            <button onClick={() => openNew()} className="hidden h-10 items-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-on-accent hover:bg-accent-hover lg:inline-flex">
+            {showNew && <button onClick={() => openNew()} className="hidden h-10 items-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-on-accent hover:bg-accent-hover lg:inline-flex">
               <Plus aria-hidden className="size-4" />Novo lançamento
-            </button>
+            </button>}
           </header>
 
           <main id="conteudo" className="mx-auto max-w-[var(--layout-content-max)] px-4 pb-28 pt-4 lg:px-6 lg:pb-10 lg:pt-6">{children}</main>
@@ -237,10 +239,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           ) : <span key={i} />,
         )}
       </nav>
-      <button onClick={() => openNew()} aria-label="Novo lançamento"
+      {showNew && <button onClick={() => openNew()} aria-label="Novo lançamento"
         className="fixed bottom-7 left-1/2 z-40 grid size-14 -translate-x-1/2 place-items-center rounded-pill bg-accent text-on-accent shadow-pop lg:hidden">
         <Plus className="size-7" />
-      </button>
+      </button>}
 
       {modal && <TransactionModal initialKind={modal} onClose={() => setModal(false)} onSaved={(msg, undo) => toast(msg, undo ? { label: "Desfazer", run: undo } : undefined)} />}
 
