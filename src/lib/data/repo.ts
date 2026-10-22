@@ -1,4 +1,4 @@
-import type { Account, Card, Category, Debt, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Recurring, Snapshot, Transaction } from "../types";
+import type { Account, Card, Category, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Recurring, Snapshot, Transaction } from "../types";
 import { emptySnapshot } from "./seed";
 
 /**
@@ -55,6 +55,8 @@ export interface Repo {
   deleteInvestmentGoal(id: string): Promise<void>;
   upsertDebt(d: Omit<Debt, "workspaceId" | "id" | "createdAt"> & { id?: string }): Promise<Debt>;
   deleteDebt(id: string): Promise<void>;
+  upsertReminder(r: Omit<Reminder, "workspaceId" | "id"> & { id?: string }): Promise<Reminder>;
+  deleteReminder(id: string): Promise<void>;
 }
 
 /** Metas e aportes ao apagar uma meta. */
