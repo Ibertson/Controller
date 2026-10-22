@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { X } from "lucide-react";
-import { categoryFits } from "@/lib/categories";
+import { categoryOptions } from "@/lib/categories";
 import { repo, useSnapshot } from "@/lib/data";
 import { formatBRL, parseBRL, splitInstallments } from "@/lib/money";
 import { monthLabel, statementMonthFor, today } from "@/lib/dates";
@@ -36,7 +36,7 @@ export function TransactionModal({ initialKind = "expense", onClose, onSaved }:
 
   const accounts = snap?.accounts.filter((a) => !a.archived) ?? [];
   const cards = snap?.cards.filter((c) => !c.archived) ?? [];
-  const categories = snap?.categories.filter((c) => !c.archived && categoryFits(c, kind === "income" ? "income" : "expense")) ?? [];
+  const categories = snap ? categoryOptions(snap.categories, kind === "income" ? "income" : "expense") : [];
   const people = snap?.people.filter((p) => !p.archived) ?? [];
 
   useEffect(() => { amountRef.current?.focus(); }, []);
@@ -143,7 +143,7 @@ export function TransactionModal({ initialKind = "expense", onClose, onSaved }:
             <Field label="Categoria" htmlFor="tx-cat" error={limitWarning ?? undefined}>
               <select id="tx-cat" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={inputClass}>
                 <option value="">Sem categoria</option>
-                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {categories.map(({ category: c, label }) => <option key={c.id} value={c.id}>{label}</option>)}
               </select>
             </Field>
           )}

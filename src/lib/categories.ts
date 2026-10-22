@@ -48,6 +48,21 @@ export function defaultCategoryChanges(existing: Category[]): CategoryChange[] {
 /** A categoria vale para este lado (despesas ou receitas)? "Ambos" vale para os dois. */
 export const categoryFits = (c: Pick<Category, "kind">, side: "expense" | "income") => c.kind === side || c.kind === "both";
 
+/** Subcategorias ativas de uma categoria, em ordem alfabética. */
+export const subcategoriesOf = (cats: Category[], parentId: string) =>
+  cats.filter((c) => c.parentId === parentId && !c.archived).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+
+/**
+ * Lista para seletores: cada categoria seguida das suas subcategorias, com o nome "Pai › Sub".
+ * `side` limita às que servem para despesa ou receita; sem ele, entram todas.
+ */
+export function categoryOptions(cats: Category[], side?: "expense" | "income") {
+  const ok = (c: Category) => !c.archived && (!side || categoryFits(c, side));
+  const ids = new Set(cats.map((c) => c.id));
+  const tops = cats.filter((c) => ok(c) && (!c.parentId || !ids.has(c.parentId))).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  return tops.flatMap((p) => [{ category: p, label: p.name }, ...subcategoriesOf(cats, p.id).filter(ok).map((s) => ({ category: s, label: `${p.name} › ${s.name}` }))]);
+}
+
 /** Ícones da tela "Nova categoria": chave (nome do Lucide) e rótulo. */
 export const CATEGORY_ICONS: Def[] = [
   ["house", "Casa"], ["car", "Carro"], ["shopping-cart", "Compras"], ["dumbbell", "Fitness"],

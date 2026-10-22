@@ -8,6 +8,7 @@ import { BulkDeleteModal, TrashModal, download, printHtml } from "@/components/Q
 import { TransactionList } from "@/components/TransactionList";
 import { Card, Skeleton, inputClass } from "@/components/ui";
 import { useSession, useSnapshot } from "@/lib/data";
+import { categoryOptions } from "@/lib/categories";
 import { daysInMonth, monthOf, today } from "@/lib/dates";
 import { activeFilterCount, emptyFilters, filterStatement, statementTotals, type ExtratoFilters, type ExtratoKind } from "@/lib/extrato";
 import { formatBRL, parseBRL } from "@/lib/money";
@@ -58,7 +59,7 @@ export default function Extrato() {
   const title = rangeTitle(f.from, f.to);
   const people = [{ id: "", name: selfName }, ...snap.people.filter((p) => !p.archived)];
   const sources = f.tab === "cartao" ? snap.cards.filter((c) => !c.archived) : snap.accounts.filter((a) => !a.archived);
-  const categories = [...snap.categories].filter((c) => !c.archived).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  const categories = categoryOptions(snap.categories);
   const fileBase = `extrato-${f.from || "inicio"}-a-${f.to || "hoje"}`;
 
   function clearFilters() {
@@ -171,7 +172,7 @@ export default function Extrato() {
                 <label htmlFor="ext-cat" className={label}>Categoria</label>
                 <select id="ext-cat" className={inputClass} value={f.categoryId} onChange={(e) => set({ categoryId: e.target.value })}>
                   <option value="">Todas</option>
-                  {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {categories.map(({ category: c, label }) => <option key={c.id} value={c.id}>{label}</option>)}
                 </select>
               </div>
               <div>

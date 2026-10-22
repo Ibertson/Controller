@@ -27,6 +27,8 @@ export interface Category {
   monthlyLimitCents: number | null; archived: boolean;
   /** Cor do ícone (hex); ausente = cor padrão do app. */
   color?: string | null;
+  /** Subcategoria: id da categoria pai (herda o tipo dela). */
+  parentId?: string | null;
 }
 
 export interface Person { id: ID; workspaceId: ID; name: string; monthlyLimitCents: number | null; archived: boolean; }

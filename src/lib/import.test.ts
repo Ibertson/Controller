@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { CATEGORY_ICONS, DEFAULT_EXPENSE, DEFAULT_INCOME, categoryFits, defaultCategoryChanges, inkOn } from "./categories";
+import { CATEGORY_ICONS, DEFAULT_EXPENSE, DEFAULT_INCOME, categoryFits, categoryOptions, defaultCategoryChanges, inkOn, subcategoriesOf } from "./categories";
 import { bulkPayments, bulkTransactions, defaultBulkRange } from "./bulk";
 import { dropForever, expiredTrash, freshSnapshot, moveFromTrash, moveToTrash, scopeIds } from "./data/repo";
 import { emptySnapshot } from "./data/seed";
 import { emptyFilters, filterStatement, statementTotals, type ExtratoFilters } from "./extrato";
 import { filterForExport } from "./report";
 import { parseAmount, parseCsv, parseDate, parseOfx, rowsFromTable } from "./statement";
-import type { Snapshot, Transaction } from "./types";
+import type { Category, Snapshot, Transaction } from "./types";
 import { unzip, writeXlsx } from "./xlsx";
 
 describe("extrato", () => {
@@ -188,5 +188,27 @@ describe("nova categoria", () => {
     expect(new Set(CATEGORY_ICONS.map(([k]) => k)).size).toBe(48);
     expect(inkOn("#222222")).toBe("#ffffff");
     expect(inkOn("#e6df2c")).toBe("#121a17");
+  });
+});
+
+describe("subcategorias", () => {
+  const base = { workspaceId: "w", icon: "", monthlyLimitCents: null, archived: false };
+  const cats: Category[] = [
+    { ...base, id: "a", name: "Alimentação", kind: "expense" },
+    { ...base, id: "a1", name: "Delivery", kind: "expense", parentId: "a" },
+    { ...base, id: "a2", name: "Café", kind: "expense", parentId: "a" },
+    { ...base, id: "s", name: "Salário", kind: "income" },
+    { ...base, id: "x", name: "Velha", kind: "expense", archived: true },
+  ];
+  it("lista o pai seguido das subcategorias, em ordem", () => {
+    expect(subcategoriesOf(cats, "a").map((c) => c.name)).toEqual(["Café", "Delivery"]);
+    expect(categoryOptions(cats, "expense").map((o) => o.label)).toEqual(["Alimentação", "Alimentação › Café", "Alimentação › Delivery"]);
+    expect(categoryOptions(cats).map((o) => o.label)).toContain("Salário");
+  });
+  it("filtrar o extrato pelo pai inclui as subcategorias", () => {
+    const tx = (id: string, categoryId: string) => ({ id, workspaceId: "w", kind: "expense" as const, amountCents: 100, occurredOn: "2026-10-05", description: id, categoryId, accountId: null, toAccountId: null, cardId: null, statementMonth: null, personId: null, createdAt: "2026-10-05T00:00:00Z" });
+    const snap = { categories: cats, transactions: [tx("t1", "a"), tx("t2", "a1"), tx("t3", "s")] } as unknown as Snapshot;
+    const f = { ...emptyFilters("2026-10-01", "2026-10-31"), categoryId: "a" };
+    expect(filterStatement(snap, f).map((t) => t.id)).toEqual(["t1", "t2"]);
   });
 });

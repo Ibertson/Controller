@@ -31,12 +31,14 @@ const kindOf = (t: Transaction): Exclude<ExtratoKind, "all"> =>
 
 export function filterStatement(s: Snapshot, f: ExtratoFilters): Transaction[] {
   const q = normName(f.search);
+  // Filtrar por uma categoria inclui as subcategorias dela.
+  const cats = f.categoryId ? new Set([f.categoryId, ...s.categories.filter((c) => c.parentId === f.categoryId).map((c) => c.id)]) : null;
   return s.transactions.filter((t) => {
     if (f.tab === "cartao" && !t.cardId) return false;
     if (f.from && t.occurredOn < f.from) return false;
     if (f.to && t.occurredOn > f.to) return false;
     if (q && !normName(t.description).includes(q)) return false;
-    if (f.categoryId && t.categoryId !== f.categoryId) return false;
+    if (cats && !cats.has(t.categoryId ?? "")) return false;
     if (f.kind !== "all" && kindOf(t) !== f.kind) return false;
     if (f.personId != null && (t.personId ?? "") !== f.personId) return false;
     if (f.sourceId) {

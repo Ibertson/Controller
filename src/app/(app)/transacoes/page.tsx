@@ -13,6 +13,7 @@ import { BulkDeleteModal, ExportModal, ImportStatementModal, TrashModal } from "
 import { TransactionList } from "@/components/TransactionList";
 import { Card, EmptyState, Skeleton, inputClass } from "@/components/ui";
 import { repo, useSession, useSnapshot } from "@/lib/data";
+import { categoryOptions } from "@/lib/categories";
 import { monthOf, today } from "@/lib/dates";
 import { formatBRL } from "@/lib/money";
 import { accountBalances, balanceSeries, monthTotals, monthTransactions, totalBalance, totalsByPerson } from "@/lib/summary";
@@ -214,7 +215,7 @@ export default function Transacoes() {
             </select>
             <select aria-label="Categoria" value={category} onChange={(e) => setCategory(e.target.value)} className={inputClass}>
               <option value="">Todas as categorias</option>
-              {snap.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {categoryOptions(snap.categories).map(({ category: c, label }) => <option key={c.id} value={c.id}>{label}</option>)}
             </select>
             {snap.people.length > 0 && (
               <select aria-label="Pessoa" value={person} onChange={(e) => setPerson(e.target.value)} className={inputClass}>
