@@ -413,13 +413,10 @@ function VersionSection() {
 
 function DangerZone({ onLeave }: { onLeave: () => void }) {
   const [confirming, setConfirming] = useState(false);
-  const [typed, setTyped] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function remove(e: FormEvent) {
-    e.preventDefault();
-    if (typed.trim().toUpperCase() !== "EXCLUIR") return setError("Digite EXCLUIR para confirmar.");
+  async function remove() {
     setBusy(true);
     try { await repo.deleteAccount(); onLeave(); }
     catch (err) { setError(errMsg(err)); setBusy(false); }
@@ -429,23 +426,23 @@ function DangerZone({ onLeave }: { onLeave: () => void }) {
   return (
     <div className="flex flex-wrap gap-3 pb-4">
       <button type="button" className={outline} onClick={async () => { await repo.signOut(); onLeave(); }}><LogOut aria-hidden className="size-4" />Sair da Conta</button>
-      <button type="button" className={outline} onClick={() => setConfirming(true)}><Trash2 aria-hidden className="size-4" />Excluir Minha Conta</button>
+      <button type="button" className={outline} onClick={() => { setError(""); setConfirming(true); }}><Trash2 aria-hidden className="size-4" />Excluir Minha Conta</button>
       {confirming && (
-        <Dialog onClose={() => setConfirming(false)} title={<h2 className="text-lg font-semibold text-danger">Excluir minha conta</h2>}>
-          <form onSubmit={remove} noValidate className="flex flex-col gap-4">
-            <p className="text-sm">
+        <Dialog onClose={() => setConfirming(false)} title={<h2 className="text-xl font-semibold">Excluir sua conta?</h2>}>
+          <div className="flex flex-col gap-4 text-base text-text-muted">
+            <p>
               {repo.mode === "supabase"
-                ? "Isso apaga seu login e todos os seus dados: contas, cartões, transações, metas, investimentos, dívidas e lembretes. Não dá para desfazer."
-                : "Isso apaga todos os dados guardados neste aparelho. Não dá para desfazer."}
+                ? "Ao confirmar, sua conta e todos os seus dados no Sobra serão apagados permanentemente: transações, contas bancárias, cartões, metas, investimentos, dívidas, pessoas e números de WhatsApp vinculados, veículos, lembretes e lista de desejos."
+                : "Ao confirmar, todos os seus dados guardados neste aparelho serão apagados permanentemente: transações, contas bancárias, cartões, metas, investimentos, dívidas, pessoas e números de WhatsApp vinculados, veículos, lembretes e lista de desejos."}
             </p>
-            <Field label="Digite EXCLUIR para confirmar" htmlFor="del-confirm" error={error}>
-              <Input id="del-confirm" autoFocus autoComplete="off" value={typed} aria-invalid={!!error || undefined} onChange={(e) => { setTyped(e.target.value); setError(""); }} />
-            </Field>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>Cancelar</Button>
-              <Button type="submit" variant="danger" loading={busy}>Excluir para sempre</Button>
+            <p className="font-semibold text-danger">Essa ação não pode ser desfeita.</p>
+            <p>O Sobra não tem assinatura nem cobrança, então não há nada para cancelar.</p>
+            {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="secondary" size="lg" onClick={() => setConfirming(false)}>Cancelar</Button>
+              <Button type="button" variant="danger" size="lg" loading={busy} onClick={() => void remove()}>Excluir Minha Conta</Button>
             </div>
-          </form>
+          </div>
         </Dialog>
       )}
     </div>
