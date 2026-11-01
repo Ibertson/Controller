@@ -4,10 +4,17 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildTransactions } from "../transactions";
 import type { Account, Card, Category, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
+import { Outbox, browserStore, isNetworkFailure, type Op, type RunResult, type SyncStatus } from "./outbox";
 import { emptySnapshot } from "./seed";
 
 // Banco: supabase/migrations. As colunas são snake_case; aqui viram camelCase.
 type Row = Record<string, unknown>;
+
+const OFFLINE_MSG = "Sem internet agora. Tente de novo quando a conexão voltar.";
+const online = () => typeof navigator === "undefined" || navigator.onLine !== false;
+/** Cópia dos dados no aparelho (abre sem internet) e o último usuário conectado. */
+const cacheKey = (uid: string) => `sobra:cache:${uid}`;
+const LAST_USER = "sobra:last-user";
 
 const toAccount = (r: Row): Account => ({
   id: r.id as string, workspaceId: r.workspace_id as string, name: r.name as string, kind: r.kind as Account["kind"],
@@ -164,6 +171,10 @@ export class SupabaseRepo implements Repo {
   private keys = new Set<string>();
   private started = false;
   private failure: string | null = null;
+  private outbox: Outbox | null = null;
+  private outboxUid: string | null = null;
+  private status: SyncStatus = { online: true, pending: 0, syncing: false, error: null };
+  private cacheTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(url: string, key: string) {
     // "implicit": o link do email funciona mesmo se abrir em outro navegador (ex.: app do Gmail no celular);
@@ -178,22 +189,118 @@ export class SupabaseRepo implements Repo {
     this.started = true;
     this.db.auth.onAuthStateChange((_event, session) => {
       const u = session?.user;
-      if (!u) { this.user = null; this.data = null; this.prof = null; this.failure = null; this.emit(); return; }
+      if (!u) {
+        // Sem internet o token vencido não renova; abre com a cópia do aparelho em vez de pedir login.
+        if (!online() && this.restoreLastUser()) return;
+        this.user = null; this.data = null; this.prof = null; this.failure = null; this.outbox = null; this.outboxUid = null; this.emit(); return;
+      }
       if (this.user?.id === u.id && this.data) return;
       this.user = {
         id: u.id, name: (u.user_metadata?.name as string) || u.email?.split("@")[0] || "você",
         email: u.email ?? null, createdAt: u.created_at, hasPassword: u.user_metadata?.has_password === true,
       };
+      browserStore.set(LAST_USER, u.id);
+      this.openOutbox(u.id);
       // fora do callback: o supabase-js não deve ser chamado de dentro dele
       setTimeout(() => this.reload(), 0);
     });
+    window.addEventListener("online", () => void this.resync());
+    window.addEventListener("offline", () => this.emit());
+    // Voltou ao app (outra aba, outro aparelho mexeu): traz o que mudou.
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") void this.resync(); });
   }
+
+  private openOutbox(uid: string) {
+    if (this.outbox && this.outboxUid === uid) return;
+    this.outboxUid = uid;
+    this.outbox = new Outbox(`sobra:outbox:${uid}`, (op) => this.runOp(op), () => this.emit(), () => this.reload());
+  }
+
+  /** Envia o que ficou guardado e recarrega do servidor (pega mudanças feitas em outros aparelhos). */
+  private async resync() {
+    if (!this.user || !online()) { this.emit(); return; }
+    await this.db.auth.getSession(); // renova o login se venceu enquanto estava offline
+    await this.outbox?.flush();
+    if (!this.outbox?.pending) this.reload();
+  }
+
+  private restoreLastUser(): boolean {
+    const uid = browserStore.get(LAST_USER);
+    const cached = uid ? this.readCache(uid) : null;
+    if (!cached) return false;
+    this.user = cached.user; this.data = cached.data; this.prof = cached.prof; this.failure = null;
+    this.openOutbox(cached.user.id);
+    this.emit();
+    return true;
+  }
+
+  private readCache(uid: string): { user: NonNullable<SupabaseRepo["user"]>; data: Snapshot; prof: Profile | null } | null {
+    try {
+      const c = JSON.parse(browserStore.get(cacheKey(uid)) ?? "null");
+      return c?.user?.id === uid && c.data ? c : null;
+    } catch { return null; }
+  }
+
+  private saveCache() {
+    if (this.cacheTimer) clearTimeout(this.cacheTimer);
+    this.cacheTimer = setTimeout(() => {
+      if (this.user && this.data) browserStore.set(cacheKey(this.user.id), JSON.stringify({ user: this.user, data: this.data, prof: this.prof }));
+    }, 300);
+  }
+
+  private async runOp(op: Op): Promise<RunResult> {
+    try {
+      const q = this.db.from(op.table);
+      const calls = op.t === "upsert" ? [q.upsert(op.rows)]
+        : op.t === "clear" ? [q.delete().eq("workspace_id", op.workspaceId)]
+        : chunks(op.ids).map((ids) => (op.t === "update" ? this.db.from(op.table).update(op.patch) : this.db.from(op.table).delete()).in("id", ids));
+      for (const call of calls) {
+        const res = await call;
+        if (res.error) return { ok: false, network: isNetworkFailure(res.status, res.error.message), message: res.error.message };
+      }
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, network: true, message: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
+  /** Grava no servidor; sem internet, guarda no aparelho e envia depois. */
+  private async write(op: Op) {
+    if (!this.outbox) throw new Error("não autenticado");
+    await this.outbox.send(op);
+  }
+
+  syncStatus(): SyncStatus {
+    const next: SyncStatus = {
+      online: online(), pending: this.outbox?.pending ?? 0, syncing: this.outbox?.syncing ?? false, error: this.outbox?.error ?? null,
+    };
+    const s = this.status;
+    if (s.online !== next.online || s.pending !== next.pending || s.syncing !== next.syncing || s.error !== next.error) this.status = next;
+    return this.status;
+  }
+
+  dismissSyncError() { if (this.outbox) { this.outbox.error = null; this.emit(); } }
 
   private reload() {
     this.failure = null;
+    const uid = this.user?.id;
+    if (uid && !this.data) {
+      // abre na hora com a cópia do aparelho; a versão do servidor chega em seguida
+      const c = this.readCache(uid);
+      if (c) { this.data = c.data; this.prof = c.prof; }
+    }
     this.emit();
-    this.load().catch((e) => {
+    (async () => {
+      // primeiro manda o que foi feito offline, senão o servidor sobrescreveria
+      if (this.outbox?.pending && online()) await this.outbox.flush();
+      if (this.outbox?.pending || !online()) {
+        if (this.data) return;
+        throw new Error(OFFLINE_MSG);
+      }
+      await this.load();
+    })().catch((e) => {
       console.error("Falha ao carregar dados", e);
+      if (this.data && (!online() || isNetworkFailure(undefined, String(e)))) { this.emit(); return; }
       this.failure = e instanceof Error ? e.message : String(e);
       this.emit();
     });
@@ -238,6 +345,7 @@ export class SupabaseRepo implements Repo {
       debts: debts.map(toDebt),
       reminders: reminders.map(toReminder),
     };
+    this.saveCache();
     this.emit();
   }
 
@@ -288,6 +396,7 @@ export class SupabaseRepo implements Repo {
   subscribe(l: () => void) { this.start(); this.listeners.add(l); return () => { this.listeners.delete(l); }; }
 
   async signIn(email: string): Promise<SignInResult> {
+    if (!online()) throw new Error(OFFLINE_MSG);
     const { error } = await this.db.auth.signInWithOtp({
       email: email.trim(),
       options: { emailRedirectTo: window.location.origin + "/" },
@@ -295,9 +404,13 @@ export class SupabaseRepo implements Repo {
     if (error) throw new Error(error.message);
     return "check_email";
   }
-  async signOut() { await this.db.auth.signOut(); }
+  async signOut() {
+    browserStore.remove(LAST_USER);
+    await this.db.auth.signOut({ scope: online() ? "global" : "local" });
+  }
 
   async signInWithPassword(email: string, password: string) {
+    if (!online()) throw new Error(OFFLINE_MSG);
     const { error } = await this.db.auth.signInWithPassword({ email: email.trim(), password });
     if (error) throw new Error(/invalid/i.test(error.message) ? "Email ou senha incorretos." : error.message);
   }
@@ -307,15 +420,16 @@ export class SupabaseRepo implements Repo {
   async updateProfile(p: Parameters<Repo["updateProfile"]>[0]) {
     if (!this.user || !this.prof) throw new Error("não autenticado");
     const next = { ...this.prof, ...p };
-    must(await this.db.from("profiles").upsert({
+    await this.write({ t: "upsert", table: "profiles", rows: [{
       user_id: this.user.id, phone: next.phone, location: next.location, avatar: next.avatar, whatsapp: next.whatsapp,
-    }));
-    this.prof = next; this.emit();
+    }] });
+    this.prof = next; this.saveCache(); this.emit();
   }
 
   async changePassword(current: string | null, next: string) {
     const u = this.user;
     if (!u || !u.email) throw new Error("não autenticado");
+    if (!online()) throw new Error(OFFLINE_MSG);
     if (u.hasPassword) {
       if (!current) throw new Error("Informe a senha atual.");
       const check = await this.db.auth.signInWithPassword({ email: u.email, password: current });
@@ -329,19 +443,23 @@ export class SupabaseRepo implements Repo {
   }
 
   async deleteAccount() {
+    if (!online()) throw new Error(OFFLINE_MSG);
     const { error } = await this.db.rpc("delete_my_account");
     // PGRST202: a função ainda não foi criada no banco
     if (error) throw new Error(error.code === "PGRST202" ? "A exclusão de conta ainda não foi ativada no banco. Nada foi apagado." : error.message);
+    if (this.user) { browserStore.remove(cacheKey(this.user.id)); this.outbox?.clear(); }
+    browserStore.remove(LAST_USER);
     await this.db.auth.signOut();
   }
 
   async renameSelf(name: string) {
+    if (!online()) throw new Error(OFFLINE_MSG);
     const { error } = await this.db.auth.updateUser({ data: { name } });
     if (error) throw new Error(error.message);
-    if (this.user) { this.user = { ...this.user, name }; this.emit(); }
+    if (this.user) { this.user = { ...this.user, name }; this.saveCache(); this.emit(); }
   }
 
-  private set(fn: (d: Snapshot) => Snapshot) { this.data = fn(this.data!); this.emit(); }
+  private set(fn: (d: Snapshot) => Snapshot) { this.data = fn(this.data!); this.saveCache(); this.emit(); }
 
   async createTransaction(input: NewTransactionInput) {
     const d = this.data!;
@@ -353,7 +471,7 @@ export class SupabaseRepo implements Repo {
     const rows = buildTransactions(input, { workspaceId: d.workspace.id, card, newId, now: new Date().toISOString() });
     if (input.idempotencyKey) this.keys.add(input.idempotencyKey);
     try {
-      must(await this.db.from("transactions").insert(rows.map(fromTransaction)));
+      await this.write({ t: "upsert", table: "transactions", rows: rows.map(fromTransaction) });
     } catch (e) {
       if (input.idempotencyKey) this.keys.delete(input.idempotencyKey);
       throw e;
@@ -368,17 +486,17 @@ export class SupabaseRepo implements Repo {
   async trashTransactions(ids: string[]) {
     if (!ids.length) return;
     const when = new Date().toISOString();
-    for (const chunk of chunks(ids)) must(await this.db.from("transactions").update({ deleted_at: when }).in("id", chunk));
+    await this.write({ t: "update", table: "transactions", patch: { deleted_at: when }, ids });
     this.set((d) => moveToTrash(d, ids, when));
   }
   async restoreTransactions(ids: string[]) {
     if (!ids.length) return;
-    for (const chunk of chunks(ids)) must(await this.db.from("transactions").update({ deleted_at: null }).in("id", chunk));
+    await this.write({ t: "update", table: "transactions", patch: { deleted_at: null }, ids });
     this.set((d) => moveFromTrash(d, ids));
   }
   async purgeTransactions(ids: string[]) {
     if (!ids.length) return;
-    for (const chunk of chunks(ids)) must(await this.db.from("transactions").delete().in("id", chunk));
+    await this.write({ t: "delete", table: "transactions", ids });
     this.set((d) => dropForever(d, ids));
   }
 
@@ -386,18 +504,18 @@ export class SupabaseRepo implements Repo {
     const ws = this.data!.workspace;
     // Ordem das chaves estrangeiras: lançamentos antes de contas, cartões, categorias e pessoas.
     for (const table of ["transactions", "recurring", "goal_contributions", "goals", "investments", "investment_goals", "debts", "reminders", "month_closings", "cards", "accounts", "categories", "people"]) {
-      must(await this.db.from(table).delete().eq("workspace_id", ws.id));
+      await this.write({ t: "clear", table, workspaceId: ws.id });
     }
     const fresh = freshSnapshot(ws, newId);
-    must(await this.db.from("accounts").insert(fresh.accounts.map(fromAccount)));
-    must(await this.db.from("categories").insert(fresh.categories.map(fromCategory)));
+    await this.write({ t: "upsert", table: "accounts", rows: fresh.accounts.map(fromAccount) });
+    await this.write({ t: "upsert", table: "categories", rows: fresh.categories.map(fromCategory) });
     this.set(() => fresh);
   }
 
   async markPaid(id: string, accountId?: string) {
     const patch: Row = { is_paid: true, due_on: null };
     if (accountId) patch.account_id = accountId;
-    must(await this.db.from("transactions").update(patch).eq("id", id));
+    await this.write({ t: "update", table: "transactions", patch, ids: [id] });
     this.set((d) => ({ ...d, transactions: d.transactions.map((t) => (t.id === id ? { ...t, isPaid: true, dueOn: null, accountId: accountId ?? t.accountId } : t)) }));
   }
 
@@ -405,7 +523,7 @@ export class SupabaseRepo implements Repo {
     key: K, item: Omit<T, "workspaceId" | "id"> & { id?: string }, toRow: (x: T) => Row,
   ): Promise<T> {
     const saved = { ...item, id: item.id ?? newId(), workspaceId: this.data!.workspace.id } as T;
-    must(await this.db.from(key === "investmentGoals" ? "investment_goals" : key).upsert(toRow(saved)));
+    await this.write({ t: "upsert", table: key === "investmentGoals" ? "investment_goals" : key, rows: [toRow(saved)] });
     this.set((d) => {
       const list = (d[key] ?? []) as T[];
       return { ...d, [key]: list.some((x) => x.id === saved.id) ? list.map((x) => (x.id === saved.id ? saved : x)) : [...list, saved] };
@@ -421,22 +539,22 @@ export class SupabaseRepo implements Repo {
     return this.upsert<"goals", Goal>("goals", { ...g, createdAt: old?.createdAt ?? new Date().toISOString() }, fromGoal);
   }
   async deleteGoal(id: string) {
-    must(await this.db.from("goals").delete().eq("id", id));
+    await this.write({ t: "delete", table: "goals", ids: [id] });
     this.set((d) => withoutGoal(d, id));
   }
   async addContribution(c: Parameters<Repo["addContribution"]>[0]) {
     const saved: GoalContribution = { ...c, id: newId(), workspaceId: this.data!.workspace.id };
-    must(await this.db.from("goal_contributions").insert({
+    await this.write({ t: "upsert", table: "goal_contributions", rows: [{
       id: saved.id, goal_id: saved.goalId, workspace_id: saved.workspaceId, amount_cents: saved.amountCents,
       contributed_on: saved.contributedOn, person_id: saved.personId,
-    }));
+    }] });
     this.set((d) => ({ ...d, goalContributions: [...(d.goalContributions ?? []), saved] }));
     return saved;
   }
   upsertRecurring(r: Parameters<Repo["upsertRecurring"]>[0]) { return this.upsert<"recurring", Recurring>("recurring", r, fromRecurring); }
   upsertInvestment(i: Parameters<Repo["upsertInvestment"]>[0]) { return this.upsert<"investments", Investment>("investments", i, fromInvestment); }
   async deleteInvestment(id: string) {
-    must(await this.db.from("investments").delete().eq("id", id));
+    await this.write({ t: "delete", table: "investments", ids: [id] });
     this.set((d) => ({ ...d, investments: (d.investments ?? []).filter((x) => x.id !== id) }));
   }
   upsertInvestmentGoal(g: Parameters<Repo["upsertInvestmentGoal"]>[0]) {
@@ -448,19 +566,19 @@ export class SupabaseRepo implements Repo {
   }
   upsertReminder(r: Parameters<Repo["upsertReminder"]>[0]) { return this.upsert<"reminders", Reminder>("reminders", r, fromReminder); }
   async deleteReminder(id: string) {
-    must(await this.db.from("reminders").delete().eq("id", id));
+    await this.write({ t: "delete", table: "reminders", ids: [id] });
     this.set((d) => ({ ...d, reminders: (d.reminders ?? []).filter((x) => x.id !== id) }));
   }
   async deleteDebt(id: string) {
-    must(await this.db.from("debts").delete().eq("id", id));
+    await this.write({ t: "delete", table: "debts", ids: [id] });
     this.set((d) => ({ ...d, debts: (d.debts ?? []).filter((x) => x.id !== id) }));
   }
   async deleteInvestmentGoal(id: string) {
-    must(await this.db.from("investment_goals").delete().eq("id", id));
+    await this.write({ t: "delete", table: "investment_goals", ids: [id] });
     this.set((d) => ({ ...d, investmentGoals: (d.investmentGoals ?? []).filter((x) => x.id !== id) }));
   }
   async deleteRecurring(id: string) {
-    must(await this.db.from("recurring").delete().eq("id", id));
+    await this.write({ t: "delete", table: "recurring", ids: [id] });
     this.set((d) => ({
       ...d, recurring: (d.recurring ?? []).filter((r) => r.id !== id),
       transactions: d.transactions.map((t) => (t.recurringId === id ? { ...t, recurringId: null } : t)),

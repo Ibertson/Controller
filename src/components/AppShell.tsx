@@ -12,6 +12,7 @@ import { addMonths, monthLabel, monthOf, today } from "@/lib/dates";
 import { defaultCategoryChanges } from "@/lib/categories";
 import { repo, useLoadError, useSession, useSnapshot } from "@/lib/data";
 import { expiredTrash } from "@/lib/data/repo";
+import { SyncBanner } from "./SyncBanner";
 import { TransactionModal } from "./TransactionModal";
 import { Button, Skeleton } from "./ui";
 
@@ -221,6 +222,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Plus aria-hidden className="size-4" />Novo lançamento
             </button>}
           </header>
+          <SyncBanner />
 
           <main id="conteudo" className="mx-auto max-w-[var(--layout-content-max)] px-4 pb-28 pt-4 lg:px-6 lg:pb-10 lg:pt-6">{children}</main>
         </div>
