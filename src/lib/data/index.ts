@@ -27,6 +27,10 @@ export function useProfile() {
   return useSyncExternalStore(subscribe, () => repo.profile(), () => null);
 }
 
+export function useSyncStatus() {
+  return useSyncExternalStore(subscribe, () => repo.syncStatus(), () => repo.syncStatus());
+}
+
 export function useLoadError() {
   return useSyncExternalStore(subscribe, () => repo.loadError(), () => null);
 }

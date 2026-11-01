@@ -4,9 +4,11 @@ import { buildTransactions } from "../transactions";
 import type { GoalContribution, Profile, Snapshot } from "../types";
 import { today } from "../dates";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
+import type { SyncStatus } from "./outbox";
 import { emptySnapshot } from "./seed";
 
 const KEY = "sobra:v1";
+const SYNCED: SyncStatus = { online: true, pending: 0, syncing: false, error: null };
 const newId = () => crypto.randomUUID();
 
 type LocalProfile = Omit<Profile, "email" | "hasPassword">;
@@ -58,6 +60,9 @@ export class LocalRepo implements Repo {
   }
   loadError() { return null; }
   retry() {}
+  // Tudo já fica neste aparelho: nada para sincronizar.
+  syncStatus() { return SYNCED; }
+  dismissSyncError() {}
   async signOut() { this.commit({ ...this.state, session: null }); }
   async renameSelf(name: string) { this.load(); this.commit({ ...this.state, session: { name } }); }
   async signInWithPassword(): Promise<void> { throw new Error("Neste modo não há senha: os dados ficam só neste aparelho."); }

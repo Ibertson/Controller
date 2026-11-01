@@ -1,4 +1,5 @@
 import type { Account, Card, Category, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Profile, Recurring, Snapshot, Transaction } from "../types";
+import type { SyncStatus } from "./outbox";
 import { emptySnapshot } from "./seed";
 
 /**
@@ -30,6 +31,9 @@ export interface Repo {
   loadError(): string | null;
   /** Tenta carregar os dados de novo depois de um erro. */
   retry(): void;
+  /** Conexão e alterações feitas sem internet esperando envio. */
+  syncStatus(): SyncStatus;
+  dismissSyncError(): void;
 
   snapshot(): Snapshot | null;
   subscribe(listener: () => void): () => void;
