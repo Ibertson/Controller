@@ -9,6 +9,7 @@ import { formatBRL, parseBRL } from "@/lib/money";
 import type { Recurring, Snapshot } from "@/lib/types";
 import { Dialog } from "./Dialog";
 import { Button, Field, Input, inputClass } from "./ui";
+import { PersonOptions } from "./people";
 
 /** Novo ou editar gasto fixo / receita fixa mensal. */
 export function RecurringModal({ snap, kind, item, onClose, onSaved }: {
@@ -102,8 +103,7 @@ export function RecurringModal({ snap, kind, item, onClose, onSaved }: {
         {snap.people.some((p) => !p.archived) && (
           <Field label="Pessoa (opcional)" htmlFor="rec-person">
             <select id="rec-person" className={inputClass} value={personId} onChange={(e) => setPersonId(e.target.value)}>
-              <option value="">Eu</option>
-              {snap.people.filter((p) => !p.archived).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              <PersonOptions />
             </select>
           </Field>
         )}

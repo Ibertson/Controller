@@ -9,6 +9,7 @@ import { repo, useSnapshot } from "@/lib/data";
 import { today } from "@/lib/dates";
 import { completeReminder, dueStatus, formatWhatsapp, reminderMessage, reminderTypeLabel, repeatLabel, whatsappLink } from "@/lib/reminders";
 import type { Reminder, ReminderType } from "@/lib/types";
+import { usePersonName } from "@/components/people";
 
 const TYPE_ICON: Record<ReminderType, LucideIcon> = { casa: House, reforma: Hammer, manutencao: Wrench, carro: Car, moto: Bike, outro: Bell };
 const TONE = { late: "bg-expense/10 text-expense", today: "bg-warning/15 text-warning", soon: "bg-accent/10 text-accent", later: "bg-surface text-text-muted" };
@@ -19,6 +20,7 @@ export default function Lembretes() {
   const { toast } = useShell();
   const [tab, setTab] = useState<"active" | "done">("active");
   const [form, setForm] = useState<null | { item?: Reminder }>(null);
+  const personName = usePersonName();
 
   if (!snap) return <Skeleton className="h-64" />;
   const all = snap.reminders ?? [];
@@ -27,7 +29,7 @@ export default function Lembretes() {
   const list = tab === "active" ? active : done;
   const now = today();
   const late = active.filter((r) => r.dueOn < now).length;
-  const person = (id: string | null) => (id ? snap.people.find((p) => p.id === id)?.name : null) ?? "Conta principal";
+  const person = (id: string | null) => personName(id);
 
   async function complete(r: Reminder) {
     const next = completeReminder(r, now, new Date().toISOString());
