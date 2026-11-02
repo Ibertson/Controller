@@ -19,7 +19,8 @@ import { Button, Skeleton } from "./ui";
 interface ShellState {
   month: string;
   setMonth: (m: string) => void;
-  openNew: (kind?: NewKind) => void;
+  /** Abre o novo lançamento; accountId já escolhe a conta de origem. */
+  openNew: (kind?: NewKind, accountId?: string) => void;
   toast: (msg: string, action?: { label: string; run: () => void }) => void;
 }
 type NewKind = "expense" | "income" | "transfer";
@@ -110,6 +111,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const [chosenMonth, setMonth] = useState<string | null>(null);
   const [modal, setModal] = useState<false | NewKind>(false);
+  const [modalAccount, setModalAccount] = useState<string | undefined>();
   const [drawer, setDrawer] = useState(false);
   const [toastState, setToast] = useState<{ msg: string; action?: { label: string; run: () => void } } | null>(null);
 
@@ -143,7 +145,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       const el = e.target as HTMLElement;
       if (e.key.toLowerCase() === "n" && !e.metaKey && !e.ctrlKey && !el.closest("input,textarea,select,[contenteditable],[role=dialog]")) {
         e.preventDefault();
-        setModal("expense");
+        setModalAccount(undefined); setModal("expense");
       }
     };
     window.addEventListener("keydown", onKey);
@@ -157,7 +159,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [toastState]);
 
   const toast = useCallback((msg: string, action?: { label: string; run: () => void }) => setToast({ msg, action }), []);
-  const openNew = useCallback((kind: NewKind = "expense") => setModal(kind), []);
+  const openNew = useCallback((kind: NewKind = "expense", accountId?: string) => { setModalAccount(accountId); setModal(kind); }, []);
 
   if (!session && loadError) {
     return (
@@ -244,7 +246,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Plus className="size-7" />
       </button>}
 
-      {modal && <TransactionModal initialKind={modal} onClose={() => setModal(false)} onSaved={(msg, undo) => toast(msg, undo ? { label: "Desfazer", run: undo } : undefined)} />}
+      {modal && <TransactionModal initialKind={modal} initialAccountId={modalAccount} onClose={() => setModal(false)} onSaved={(msg, undo) => toast(msg, undo ? { label: "Desfazer", run: undo } : undefined)} />}
 
       <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-24 z-50 flex justify-center px-4 lg:bottom-6">
         {toastState && (

@@ -22,7 +22,7 @@ export const CARD_COLORS: Record<string, string> = {
   coral: "linear-gradient(135deg, #c2453a, #8a2c24)",
   anil: "linear-gradient(135deg, #4b4fc9, #30338a)",
 };
-const COLOR_NAMES: Record<string, string> = {
+export const COLOR_NAMES: Record<string, string> = {
   grafite: "Grafite", azul: "Azul", verde: "Verde", roxo: "Roxo", laranja: "Laranja",
   vinho: "Vinho", petroleo: "Petróleo", mostarda: "Mostarda", coral: "Coral", anil: "Anil",
 };

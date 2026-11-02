@@ -14,10 +14,10 @@ export function accountBalances(s: Snapshot): Map<string, number> {
   return out;
 }
 
+/** Soma das contas ativas (conta excluída sai do total; os lançamentos dela continuam no histórico). */
 export function totalBalance(s: Snapshot): number {
-  let sum = 0;
-  for (const [, v] of accountBalances(s)) sum += v;
-  return sum;
+  const bal = accountBalances(s);
+  return s.accounts.filter((a) => !a.archived).reduce((sum, a) => sum + (bal.get(a.id) ?? 0), 0);
 }
 
 /** Em que mês um lançamento conta para o orçamento: cartão pelo mês da fatura, o resto pela data. */

@@ -19,9 +19,16 @@ const LAST_USER = "sobra:last-user";
 const toAccount = (r: Row): Account => ({
   id: r.id as string, workspaceId: r.workspace_id as string, name: r.name as string, kind: r.kind as Account["kind"],
   initialBalanceCents: Number(r.initial_balance_cents), archived: r.archived as boolean,
+  bank: (r.bank as string) ?? null, label: (r.label as string) ?? null, personId: (r.person_id as string) ?? null,
+  overdraftCents: r.overdraft_cents == null ? null : Number(r.overdraft_cents),
+  hasDebit: Boolean(r.has_debit), debitLast4: (r.debit_last4 as string) ?? null, debitBrand: (r.debit_brand as string) ?? null,
+  color: (r.color as string) ?? null, parentId: (r.parent_id as string) ?? null, subKind: (r.sub_kind as Account["subKind"]) ?? null,
 });
 const fromAccount = (a: Account) => ({
   id: a.id, workspace_id: a.workspaceId, name: a.name, kind: a.kind, initial_balance_cents: a.initialBalanceCents, archived: a.archived,
+  bank: a.bank ?? null, label: a.label ?? null, person_id: a.personId ?? null, overdraft_cents: a.overdraftCents ?? null,
+  has_debit: a.hasDebit ?? false, debit_last4: a.debitLast4 ?? null, debit_brand: a.debitBrand ?? null,
+  color: a.color ?? null, parent_id: a.parentId ?? null, sub_kind: a.subKind ?? null,
 });
 const toCard = (r: Row): Card => ({
   id: r.id as string, workspaceId: r.workspace_id as string, name: r.name as string, limitCents: Number(r.limit_cents),

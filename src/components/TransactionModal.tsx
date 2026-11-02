@@ -13,15 +13,15 @@ import { Button, Field, Input, Segmented, inputClass } from "./ui";
 
 type Kind = Extract<TransactionKind, "expense" | "income" | "transfer">;
 
-export function TransactionModal({ initialKind = "expense", onClose, onSaved }:
-  { initialKind?: Kind; onClose: () => void; onSaved: (msg: string, undo?: () => void) => void }) {
+export function TransactionModal({ initialKind = "expense", initialAccountId, onClose, onSaved }:
+  { initialKind?: Kind; initialAccountId?: string; onClose: () => void; onSaved: (msg: string, undo?: () => void) => void }) {
   const snap = useSnapshot();
   const [kind, setKind] = useState<Kind>(initialKind);
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [payWith, setPayWith] = useState<"account" | "card">("account");
-  const [accountId, setAccountId] = useState("");
+  const [accountId, setAccountId] = useState(initialAccountId ?? "");
   const [toAccountId, setToAccountId] = useState("");
   const [cardId, setCardId] = useState("");
   const [personId, setPersonId] = useState<string | null>(null); // null: segue a pessoa do cartão
