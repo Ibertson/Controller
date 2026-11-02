@@ -18,10 +18,10 @@ import { monthOf, today } from "@/lib/dates";
 import { formatBRL } from "@/lib/money";
 import { accountBalances, balanceSeries, monthTotals, monthTransactions, totalBalance, totalsByPerson } from "@/lib/summary";
 import type { AccountKind, Person } from "@/lib/types";
+import { setSelfHidden, useSelfHidden } from "@/components/people";
 
 const kindLabel: Record<AccountKind, string> = { checking: "Conta corrente", savings: "Poupança", wallet: "Dinheiro", other: "Outra" };
 
-const SELF_HIDDEN_KEY = "sobra:titular-oculto";
 
 export default function Transacoes() {
   const snap = useSnapshot();
@@ -38,13 +38,7 @@ export default function Transacoes() {
   // Pessoa clicada (mostra Ver/Editar/Excluir) e janelas abertas.
   const [active, setActive] = useState<string | null>(null);
   const [viewing, setViewing] = useState<{ id: string; name: string } | null>(null);
-  const [selfHidden, setSelfHiddenState] = useState(() => {
-    try { return typeof window !== "undefined" && localStorage.getItem(SELF_HIDDEN_KEY) === "1"; } catch { return false; }
-  });
-  const setSelfHidden = (v: boolean) => {
-    setSelfHiddenState(v);
-    try { if (v) localStorage.setItem(SELF_HIDDEN_KEY, "1"); else localStorage.removeItem(SELF_HIDDEN_KEY); } catch { /* sem armazenamento: vale só nesta visita */ }
-  };
+  const selfHidden = useSelfHidden();
   const [tool, setTool] = useState<null | "import" | "export" | "trash" | "bulk">(null);
   const [editing, setEditing] = useState<Person | { id: ""; name: string } | null>(null);
 
@@ -64,7 +58,7 @@ export default function Transacoes() {
     (tab === "card" && side === "expense" ? t.kind === "expense" && !!t.cardId : true) &&
     (!source || t.accountId === source || t.toAccountId === source || t.cardId === source) &&
     (!category || t.categoryId === category) &&
-    (!person || t.personId === person) &&
+    (!person || (person === "self" ? !t.personId : t.personId === person)) &&
     (!term || t.description.toLowerCase().includes(term)));
   const filtered = !!(q || source || category || person);
 
@@ -217,10 +211,10 @@ export default function Transacoes() {
               <option value="">Todas as categorias</option>
               {categoryOptions(snap.categories).map(({ category: c, label }) => <option key={c.id} value={c.id}>{label}</option>)}
             </select>
-            {snap.people.length > 0 && (
+            {people.length > 1 && (
               <select aria-label="Pessoa" value={person} onChange={(e) => setPerson(e.target.value)} className={inputClass}>
                 <option value="">Todas as pessoas</option>
-                {snap.people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {people.map((p) => <option key={p.id || "self"} value={p.id || "self"}>{p.name}</option>)}
               </select>
             )}
           </div>

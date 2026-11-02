@@ -7,11 +7,12 @@ import { REMINDER_TYPES, REPEAT_OPTIONS, formatWhatsapp, normalizeWhatsapp } fro
 import type { Reminder, ReminderType, Snapshot } from "@/lib/types";
 import { Dialog } from "./Dialog";
 import { Button, Field, Input, inputClass } from "./ui";
+import { PersonOptions } from "./people";
 
 const LAST_WA = "sobra:last-whatsapp";
 
 /** Adicionar ou editar um lembrete. */
-export function ReminderModal({ snap, item, onClose, onSaved }: {
+export function ReminderModal({ item, onClose, onSaved }: {
   snap: Snapshot; item?: Reminder; onClose: () => void; onSaved: (msg: string) => void;
 }) {
   const [title, setTitle] = useState(item?.title ?? "");
@@ -77,8 +78,7 @@ export function ReminderModal({ snap, item, onClose, onSaved }: {
           </Field>
           <Field label="Pessoa a avisar (opcional)" htmlFor="rem-person">
             <select id="rem-person" className={inputClass} value={personId} onChange={(e) => setPersonId(e.target.value)}>
-              <option value="">Conta principal</option>
-              {snap.people.filter((p) => !p.archived).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              <PersonOptions />
             </select>
           </Field>
         </div>

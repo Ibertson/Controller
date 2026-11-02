@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Check, ChevronDown, CreditCard, Search } from "lucide-react";
 import { ACCOUNT_KINDS, BANKS, DEBIT_BRANDS, avatarColor, searchBanks, SUB_COLORS, accountName, accountTitle, balanceBreakdown, bankInitials, initialForCurrent, subaccounts } from "@/lib/accounts";
-import { repo, useSession, useSnapshot } from "@/lib/data";
+import { repo, useSnapshot } from "@/lib/data";
 import { formatBRL, parseBRL } from "@/lib/money";
 import { accountBalances } from "@/lib/summary";
 import type { Account, AccountKind } from "@/lib/types";
 import { CARD_BRANDS, CARD_COLORS, COLOR_NAMES, cardBackground } from "./CardModal";
 import { Dialog } from "./Dialog";
 import { Button, Field, Input, Segmented, Switch, inputClass } from "./ui";
+import { PersonOptions } from "./people";
 
 /** Valor em reais digitado; aceita "-" na frente. null = inválido. */
 function money(v: string, allowNegative = false): number | null {
@@ -127,7 +128,6 @@ const dayOk = (v: string) => { const n = Number(v); return Number.isInteger(n) &
 /** Nova conta ou "Editar Conta Bancária". */
 export function AccountModal({ account, onClose, onSaved }: { account?: Account; onClose: () => void; onSaved: (msg: string, id: string) => void }) {
   const snap = useSnapshot();
-  const session = useSession();
   const current = account && snap ? accountBalances(snap).get(account.id) ?? account.initialBalanceCents : 0;
   const [f, setF] = useState({
     personId: account?.personId ?? "", bank: account ? accountTitle(account) : "", kind: (account?.kind ?? "checking") as AccountKind,
@@ -141,7 +141,6 @@ export function AccountModal({ account, onClose, onSaved }: { account?: Account;
   const [picking, setPicking] = useState(false);
   const set = <K extends keyof typeof f>(k: K) => (v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
   if (!snap) return null;
-  const people = snap.people.filter((p) => !p.archived);
   const linkedCards = account ? snap.cards.filter((c) => c.paymentAccountId === account.id && !c.archived) : [];
 
   async function submit(e: FormEvent) {
@@ -195,8 +194,7 @@ export function AccountModal({ account, onClose, onSaved }: { account?: Account;
       <form onSubmit={submit} noValidate className="flex flex-col gap-4">
         <Field label="Pessoa/Perfil *" htmlFor="acc-person">
           <select id="acc-person" className={inputClass} value={f.personId} onChange={(e) => set("personId")(e.target.value)}>
-            <option value="">{session?.name ? `${session.name} (titular)` : "Titular"}</option>
-            {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            <PersonOptions />
           </select>
         </Field>
         <Field label="Banco *" htmlFor="acc-bank" error={err("bank")}>

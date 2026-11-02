@@ -9,6 +9,7 @@ import { formatBRL, parseBRL } from "@/lib/money";
 import type { Goal, GoalCategory, Snapshot } from "@/lib/types";
 import { Dialog } from "./Dialog";
 import { Button, Field, Input, inputClass } from "./ui";
+import { PersonOptions } from "./people";
 
 /* ------------------------------- Imagem da meta ------------------------------- */
 
@@ -68,8 +69,7 @@ async function shrink(file: File): Promise<string> {
 const MAX_BYTES = 5 * 1024 * 1024;
 const TYPES = ["image/jpeg", "image/png", "image/webp"];
 
-export function GoalForm({ snap, goal, onClose, onSaved }: { snap: Snapshot; goal?: Goal; onClose: () => void; onSaved: (msg: string) => void }) {
-  const people = snap.people.filter((p) => !p.archived);
+export function GoalForm({ goal, onClose, onSaved }: { snap: Snapshot; goal?: Goal; onClose: () => void; onSaved: (msg: string) => void }) {
   const [name, setName] = useState(goal?.name ?? "");
   const [description, setDescription] = useState(goal?.description ?? "");
   const [target, setTarget] = useState(goal ? formatBRL(goal.targetCents).replace(/^R\$\s?/, "") : "");
@@ -166,8 +166,7 @@ export function GoalForm({ snap, goal, onClose, onSaved }: { snap: Snapshot; goa
           <div className="relative">
             <User aria-hidden className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
             <select id="goal-person" className={`${inputClass} pl-9`} value={personId} onChange={(e) => setPersonId(e.target.value)}>
-              <option value="">Sem pessoa</option>
-              {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              <PersonOptions />
             </select>
           </div>
         </Field>

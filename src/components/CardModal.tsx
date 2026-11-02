@@ -6,6 +6,7 @@ import { repo, useSnapshot } from "@/lib/data";
 import { formatBRL, parseBRL } from "@/lib/money";
 import type { Card } from "@/lib/types";
 import { Button, Field, Input, inputClass } from "./ui";
+import { PersonOptions } from "./people";
 
 export const CARD_BRANDS = ["Visa", "Mastercard", "Elo", "American Express", "Hipercard", "Outra"];
 
@@ -89,7 +90,6 @@ export function CardModal({ card, onClose, onSaved }: { card?: Card; onClose: ()
   }
 
   const accounts = snap?.accounts.filter((a) => !a.archived) ?? [];
-  const people = snap?.people.filter((p) => !p.archived) ?? [];
   const invalid = (k: string) => ({ "aria-invalid": !!errors[k] || undefined, "aria-describedby": errors[k] ? `card-${k}-error` : undefined });
 
   return (
@@ -158,8 +158,7 @@ export function CardModal({ card, onClose, onSaved }: { card?: Card; onClose: ()
           </Field>
           <Field label="Pessoa vinculada (opcional)" htmlFor="card-person" hint="As compras deste cartão já vêm marcadas para essa pessoa.">
             <select id="card-person" className={inputClass} value={form.personId} onChange={(e) => set("personId")(e.target.value)}>
-              <option value="">Nenhuma</option>
-              {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              <PersonOptions />
             </select>
           </Field>
 

@@ -10,6 +10,7 @@ import { categoryUsage } from "@/lib/summary";
 import { ValidationError } from "@/lib/transactions";
 import type { TransactionKind } from "@/lib/types";
 import { Button, Field, Input, Segmented, inputClass } from "./ui";
+import { PersonOptions } from "./people";
 
 type Kind = Extract<TransactionKind, "expense" | "income" | "transfer">;
 
@@ -37,7 +38,6 @@ export function TransactionModal({ initialKind = "expense", initialAccountId, on
   const accounts = snap?.accounts.filter((a) => !a.archived) ?? [];
   const cards = snap?.cards.filter((c) => !c.archived) ?? [];
   const categories = snap ? categoryOptions(snap.categories, kind === "income" ? "income" : "expense") : [];
-  const people = snap?.people.filter((p) => !p.archived) ?? [];
 
   useEffect(() => { amountRef.current?.focus(); }, []);
   const sourceAccount = accountId || accounts[0]?.id || "";
@@ -190,11 +190,10 @@ export function TransactionModal({ initialKind = "expense", initialAccountId, on
             <Field label={paid || usingCard || kind === "transfer" ? "Data" : "Vencimento"} htmlFor="tx-date">
               <Input id="tx-date" type="date" value={date} onChange={(e) => setDate(e.target.value || today())} />
             </Field>
-            {people.length > 0 && kind !== "transfer" && (
+            {kind !== "transfer" && (
               <Field label={kind === "income" ? "Quem recebeu" : "Quem gastou"} htmlFor="tx-person">
                 <select id="tx-person" value={chosenPerson} onChange={(e) => setPersonId(e.target.value)} className={inputClass}>
-                  <option value="">Ninguém em especial</option>
-                  {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  <PersonOptions />
                 </select>
               </Field>
             )}
