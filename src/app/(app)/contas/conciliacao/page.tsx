@@ -7,16 +7,19 @@ import { AlertTriangle, ArrowLeft, Check, ChevronLeft, ChevronRight, FileText, F
 import { useShell } from "@/components/AppShell";
 import { Button, Card, EmptyState, Field, Input, Segmented, Skeleton, inputClass } from "@/components/ui";
 import { accountHref, accountTitle } from "@/lib/accounts";
+import { categoryFits, subcategoriesOf } from "@/lib/categories";
 import { repo, useSnapshot } from "@/lib/data";
 import { addMonths, monthLabel, monthOf, today } from "@/lib/dates";
 import { formatBRL, parseBRL } from "@/lib/money";
 import { accountMovements, balanceAt, cardMovements, checkInvoice, checkStatement, matchRows, type Movement } from "@/lib/reconcile";
 import type { BankLine, StatementInfo } from "@/lib/bankStatement";
+import type { Category } from "@/lib/types";
 import type { StatementRow } from "@/lib/statement";
 import { readStatementDetail, type StatementFile } from "@/lib/statementFile";
 
 type Mode = "extrato" | "fatura";
-type Line = StatementRow & Partial<BankLine>;
+/** Linha do banco; catId/subId = categoria e subcategoria escolhidas para o Lançar. */
+type Line = StatementRow & Partial<BankLine> & { catId?: string; subId?: string };
 interface Imported extends StatementFile { rows: Line[]; fileName?: string }
 const savedKey = (id: string, mode: Mode, month: string) => `sobra:conciliacao:${id}:${mode}:${month}`;
 interface Saved { initial?: string; final?: string; invoice?: string }
@@ -160,8 +163,6 @@ function StatementCheck({ accountId, month, file, setFile, onBalances }: { accou
       <div className="order-2 flex min-w-0 flex-col gap-4 lg:order-1">
         <MovementsTable title="Lançamentos do app no mês" items={items} empty="Nenhum lançamento pago nesta conta no mês." />
         {file.info && <FileSummary info={file.info} fileName={file.fileName} month={month} onUse={() => onBalances(file.info!)} />}
-        <BankRows kind="extrato" accountId={accountId} items={items} month={month} file={file}
-          setFile={(f) => { setFile(f); if (f.info) onBalances(f.info); }} />
       </div>
       <Card className="order-1 h-fit lg:order-2">
         <h2 className="mb-3 text-sm font-bold uppercase tracking-wide">Conferência · Extrato da conta</h2>
@@ -176,6 +177,10 @@ function StatementCheck({ accountId, month, file, setFile, onBalances }: { accou
         </div>
         <Status ready={ready} ok={r.ok} diff={r.diffCents} what="o saldo final do banco" />
       </Card>
+      <div className="order-3 min-w-0 lg:col-span-2">
+        <BankRows kind="extrato" accountId={accountId} items={items} month={month} file={file}
+          setFile={(f) => { setFile(f); if (f.info) onBalances(f.info); }} />
+      </div>
     </div>
   );
 }
@@ -192,7 +197,6 @@ function InvoiceCheck({ cardId, month, file, setFile }: { cardId: string; month:
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="order-2 flex min-w-0 flex-col gap-4 lg:order-1">
         <MovementsTable title="Compras lançadas nesta fatura" items={items} card empty="Nenhuma compra lançada no cartão para esta fatura." />
-        <BankRows kind="fatura" cardId={cardId} items={items} month={month} file={file} setFile={setFile} />
       </div>
       <Card className="order-1 h-fit lg:order-2">
         <h2 className="mb-3 text-sm font-bold uppercase tracking-wide">Conferência · Fatura do cartão</h2>
@@ -204,6 +208,9 @@ function InvoiceCheck({ cardId, month, file, setFile }: { cardId: string; month:
         </div>
         <Status ready={ready} ok={r.ok} diff={r.diffCents} what="o valor da fatura" />
       </Card>
+      <div className="order-3 min-w-0 lg:col-span-2">
+        <BankRows kind="fatura" cardId={cardId} items={items} month={month} file={file} setFile={setFile} />
+      </div>
     </div>
   );
 }
@@ -225,7 +232,7 @@ function MovementsTable({ title, items, empty, card }: { title: string; items: M
                   <td className="num whitespace-nowrap py-2 pr-2">{shortDate(m.date)}</td>
                   <td className="py-2 pr-2">{m.description || "—"}</td>
                   {card && <td className="num py-2 pr-2">{m.tx.installmentTotal ? `${m.tx.installmentNumber}/${m.tx.installmentTotal}` : "—"}</td>}
-                  <td className={`num whitespace-nowrap py-2 text-right ${!card && m.amountCents > 0 ? "text-income" : ""}`}>{formatBRL(m.amountCents)}</td>
+                  <td className={`num whitespace-nowrap py-2 text-right ${card ? "text-danger" : m.amountCents > 0 ? "text-income" : "text-danger"}`}>{formatBRL(card ? -Math.abs(m.amountCents) : m.amountCents)}</td>
                 </tr>
               ))}
             </tbody>
@@ -302,6 +309,7 @@ type Filter = "todos" | "ok" | "banco";
 /** Linhas do banco (arquivo ou digitadas), casadas com o app linha a linha. */
 function BankRows({ kind, accountId, cardId, items, month, file, setFile }: { kind: Mode; accountId?: string; cardId?: string; items: Movement[]; month: string } & FileProps) {
   const { toast } = useShell();
+  const snap = useSnapshot()!;
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<Filter>("todos");
   const [form, setForm] = useState({ date: today(), description: "", amount: "" });
@@ -315,6 +323,16 @@ function BankRows({ kind, accountId, cardId, items, month, file, setFile }: { ki
   const m = matchRows(rows, items, { abs: fatura });
   const matchedSet = new Set(m.matched.map((x) => x.row));
   const columns = rows.some((r) => r.history != null);
+  const signed = (v: number) => (fatura ? -Math.abs(v) : v); // despesa sempre com sinal negativo
+  const matchedTx = new Map(m.matched.map((x) => [x.row, x.item.tx]));
+  const catName = (id?: string | null) => snap.categories.find((c) => c.id === id);
+  const sideOf = (r: Line): "income" | "expense" => (fatura || r.amountCents < 0 ? "expense" : "income");
+  const topsFor = (side: "income" | "expense") => snap.categories
+    .filter((c) => !c.archived && !c.parentId && categoryFits(c, side)).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  const subsFor = (topId: string | undefined, side: "income" | "expense") =>
+    topId ? subcategoriesOf(snap.categories, topId).filter((c) => !c.archived && categoryFits(c, side)) : [];
+  const setCat = (r: Line, patch: { catId?: string; subId?: string }) =>
+    setFile({ ...file, rows: all.map((x) => (x === r ? { ...x, ...patch } : x)) });
   const shown = [...rows].filter((r) => filter === "todos" || (filter === "ok") === matchedSet.has(r));
 
   async function pick(f: File) {
@@ -330,11 +348,12 @@ function BankRows({ kind, accountId, cardId, items, month, file, setFile }: { ki
     setFile({ ...file, rows: [...all, { date: form.date, description: form.description.trim(), amountCents: v }] });
     setForm({ date: form.date, description: "", amount: "" }); setFormError("");
   }
-  async function launch(row: StatementRow) {
+  async function launch(row: Line) {
     const amountCents = Math.abs(row.amountCents);
+    const categoryId = row.subId || row.catId || null;
     try {
-      if (fatura) await repo.createTransaction({ kind: "expense", amountCents, occurredOn: row.date, description: row.description || "Compra no cartão", cardId });
-      else await repo.createTransaction({ kind: row.amountCents > 0 ? "income" : "expense", amountCents, occurredOn: row.date, description: (row.description || "Lançamento do extrato").slice(0, 140), accountId, isPaid: true });
+      if (fatura) await repo.createTransaction({ kind: "expense", amountCents, occurredOn: row.date, description: row.description || "Compra no cartão", cardId, categoryId });
+      else await repo.createTransaction({ kind: row.amountCents > 0 ? "income" : "expense", amountCents, occurredOn: row.date, description: (row.description || "Lançamento do extrato").slice(0, 140), accountId, isPaid: true, categoryId });
       toast("Lançado no app");
     } catch (e) {
       toast(e instanceof Error ? e.message : "Não foi possível lançar.");
@@ -382,7 +401,7 @@ function BankRows({ kind, accountId, cardId, items, month, file, setFile }: { ki
           </div>
 
           <div className="-mx-4 overflow-x-auto px-4">
-            <table className="w-full min-w-[640px] text-sm">
+            <table className="w-full min-w-[960px] text-sm">
               <thead><tr className="border-b border-border text-left text-xs text-text-muted">
                 <th className="py-2 pr-2 font-semibold" title="Dia do lançamento no banco">Data</th>
                 <th className="py-2 pr-2 font-semibold" title="Tipo do lançamento e, abaixo, quem pagou ou recebeu">{columns ? "Histórico" : "Descrição"}</th>
@@ -392,6 +411,8 @@ function BankRows({ kind, accountId, cardId, items, month, file, setFile }: { ki
                   <th className="py-2 pr-2 text-right font-semibold" title="O que saiu da conta">Débito (R$)</th>
                   <th className="py-2 pr-2 text-right font-semibold" title="Saldo após o lançamento. Em cinza, calculado pelo app quando o banco não informa.">Saldo (R$)</th>
                 </> : <th className="py-2 pr-2 text-right font-semibold">Valor</th>}
+                <th className="py-2 pr-2 font-semibold" title="Categoria de receita ou de despesa, conforme o lançamento">Categoria</th>
+                <th className="py-2 pr-2 font-semibold" title="Subcategoria da categoria escolhida">Subcategoria</th>
                 <th className="py-2 text-right font-semibold" title="Se a linha já existe no app">Situação</th>
               </tr></thead>
               <tbody>
@@ -410,7 +431,8 @@ function BankRows({ kind, accountId, cardId, items, month, file, setFile }: { ki
                         <td className="num whitespace-nowrap py-2 pr-2 text-right text-income">{r.creditCents ? plain(r.creditCents) : ""}</td>
                         <td className="num whitespace-nowrap py-2 pr-2 text-right text-danger">{r.debitCents ? plain(r.debitCents) : ""}</td>
                         <td className={`num whitespace-nowrap py-2 pr-2 text-right ${r.balanceCents == null ? "text-text-muted" : ""}`}>{bal == null ? "" : plain(bal)}</td>
-                      </> : <td className="num whitespace-nowrap py-2 pr-2 text-right">{formatBRL(fatura ? Math.abs(r.amountCents) : r.amountCents)}</td>}
+                      </> : <td className={`num whitespace-nowrap py-2 pr-2 text-right ${signed(r.amountCents) < 0 ? "text-danger" : "text-income"}`}>{formatBRL(signed(r.amountCents))}</td>}
+                      <CategoryCells row={r} tx={matchedTx.get(r)} side={sideOf(r)} tops={topsFor(sideOf(r))} subsFor={subsFor} catName={catName} onChange={(p) => setCat(r, p)} />
                       <td className="py-2 text-right">
                         {ok
                           ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-income"><Check aria-hidden className="size-4" />Conciliado</span>
@@ -429,7 +451,7 @@ function BankRows({ kind, accountId, cardId, items, month, file, setFile }: { ki
                 <li key={it.id} className="flex items-center gap-3 py-2 text-sm">
                   <span className="num w-20 shrink-0">{shortDate(it.date)}</span>
                   <span className="min-w-0 flex-1 truncate">{it.description || "—"}</span>
-                  <span className="num">{formatBRL(it.amountCents)}</span>
+                  <span className="num">{formatBRL(signed(it.amountCents))}</span>
                 </li>
               ))}
             </List>
@@ -450,4 +472,38 @@ function Pill({ tone, label, n, active, onClick }: { tone: "ok" | "bank" | "app"
 
 function List({ title, children }: { title: string; children: ReactNode }) {
   return <div><h3 className="text-xs font-semibold text-text-muted">{title}</h3><ul className="divide-y divide-border">{children}</ul></div>;
+}
+
+/** Colunas Categoria e Subcategoria: escolha para o Lançar, ou a do lançamento já conciliado. */
+function CategoryCells({ row, tx, side, tops, subsFor, catName, onChange }: {
+  row: Line; tx?: Movement["tx"]; side: "income" | "expense"; tops: Category[];
+  subsFor: (topId: string | undefined, side: "income" | "expense") => Category[];
+  catName: (id?: string | null) => Category | undefined; onChange: (p: { catId?: string; subId?: string }) => void;
+}) {
+  if (tx) {
+    const c = catName(tx.categoryId);
+    const parent = c?.parentId ? catName(c.parentId) : undefined;
+    return <>
+      <td className="py-2 pr-2 text-text-muted">{(parent ?? c)?.name ?? "Sem categoria"}</td>
+      <td className="py-2 pr-2 text-text-muted">{parent ? c?.name : "—"}</td>
+    </>;
+  }
+  const subs = subsFor(row.catId, side);
+  const what = side === "income" ? "receita" : "despesa";
+  return <>
+    <td className="py-1.5 pr-2">
+      <select aria-label={`Categoria de ${what} de ${row.description}`} className={`${inputClass} !h-9 min-w-32 text-sm`} value={row.catId ?? ""}
+        onChange={(e) => onChange({ catId: e.target.value || undefined, subId: undefined })}>
+        <option value="">{tops.length ? "Selecionar" : `Nenhuma de ${what}`}</option>
+        {tops.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+      </select>
+    </td>
+    <td className="py-1.5 pr-2">
+      <select aria-label={`Subcategoria de ${row.description}`} className={`${inputClass} !h-9 min-w-32 text-sm`} value={row.subId ?? ""}
+        disabled={!subs.length} onChange={(e) => onChange({ subId: e.target.value || undefined })}>
+        <option value="">{!row.catId ? "—" : subs.length ? "Selecionar" : "Sem subcategoria"}</option>
+        {subs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+      </select>
+    </td>
+  </>;
 }
