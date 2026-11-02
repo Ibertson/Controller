@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, FileUp, Plus, Scale, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, ChevronLeft, ChevronRight, FileText, FileUp, Plus, Scale, Trash2 } from "lucide-react";
 import { useShell } from "@/components/AppShell";
 import { Button, Card, EmptyState, Field, Input, Segmented, Skeleton, inputClass } from "@/components/ui";
 import { accountHref, accountTitle } from "@/lib/accounts";
@@ -11,10 +11,14 @@ import { repo, useSnapshot } from "@/lib/data";
 import { addMonths, monthLabel, monthOf, today } from "@/lib/dates";
 import { formatBRL, parseBRL } from "@/lib/money";
 import { accountMovements, balanceAt, cardMovements, checkInvoice, checkStatement, matchRows, type Movement } from "@/lib/reconcile";
+import type { BankLine, StatementInfo } from "@/lib/bankStatement";
 import type { StatementRow } from "@/lib/statement";
-import { readStatementFile } from "@/lib/statementFile";
+import { readStatementDetail, type StatementFile } from "@/lib/statementFile";
 
 type Mode = "extrato" | "fatura";
+type Line = StatementRow & Partial<BankLine>;
+interface Imported extends StatementFile { rows: Line[]; fileName?: string }
+const savedKey = (id: string, mode: Mode, month: string) => `sobra:conciliacao:${id}:${mode}:${month}`;
 interface Saved { initial?: string; final?: string; invoice?: string }
 
 const plain = (c: number) => (c < 0 ? "-" : "") + formatBRL(Math.abs(c)).replace(/^R\$\s?/, "");
@@ -54,6 +58,8 @@ function Conciliacao() {
   const [mode, setMode] = useState<Mode>(params.get("modo") === "fatura" ? "fatura" : "extrato");
   const [month, setMonth] = useState(() => monthOf(today()));
   const [cardId, setCardId] = useState("");
+  const [files, setFiles] = useState<Record<Mode, Imported>>({ extrato: { rows: [] }, fatura: { rows: [] } });
+  const [ver, setVer] = useState(0);
 
   if (!snap) return <Skeleton className="h-64" />;
   const account = snap.accounts.find((a) => a.id === id && !a.archived);
@@ -62,6 +68,20 @@ function Conciliacao() {
   }
   const cards = snap.cards.filter((c) => c.paymentAccountId === account.id && !c.archived);
   const card = cards.find((c) => c.id === cardId) ?? cards[0];
+  const setFile = (m: Mode) => (f: Imported) => setFiles((all) => ({ ...all, [m]: f }));
+
+  /** Extrato com saldo anterior e final: preenche a conferência e vai para o mês do arquivo. */
+  function applyBalances(info: StatementInfo) {
+    const m = statementMonth(info);
+    if (!m || !account || info.openingCents == null || info.closingCents == null) return;
+    const key = savedKey(account.id, "extrato", m);
+    try {
+      const old = JSON.parse(localStorage.getItem(key) ?? "{}") as Saved;
+      localStorage.setItem(key, JSON.stringify({ ...old, initial: plain(info.openingCents), final: plain(info.closingCents) }));
+    } catch { /* sem armazenamento: os campos ficam como estão */ }
+    setMonth(m);
+    setVer((v) => v + 1);
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -90,9 +110,10 @@ function Conciliacao() {
       </div>
 
       {mode === "extrato"
-        ? <StatementCheck key={`${account.id}-${month}`} accountId={account.id} month={month} />
+        ? <StatementCheck key={`${account.id}-${month}-${ver}`} accountId={account.id} month={month}
+            file={files.extrato} setFile={setFile("extrato")} onBalances={applyBalances} />
         : card
-          ? <InvoiceCheck key={`${card.id}-${month}`} cardId={card.id} month={month} />
+          ? <InvoiceCheck key={`${card.id}-${month}`} cardId={card.id} month={month} file={files.fatura} setFile={setFile("fatura")} />
           : <Card><EmptyState icon={Scale} title="Nenhum cartão de crédito ligado a esta conta. Ligue um em Editar, na página da conta."
               action={<Link href={accountHref(account.id)} className="font-semibold text-accent underline">Ir para a conta</Link>} /></Card>}
     </div>
@@ -123,9 +144,11 @@ function MoneyField({ id, label, value, onChange, placeholder }: { id: string; l
 }
 
 /** Conferência do extrato da conta corrente. */
-function StatementCheck({ accountId, month }: { accountId: string; month: string }) {
+interface FileProps { file: Imported; setFile: (f: Imported) => void }
+
+function StatementCheck({ accountId, month, file, setFile, onBalances }: { accountId: string; month: string; onBalances: (i: StatementInfo) => void } & FileProps) {
   const snap = useSnapshot()!;
-  const [saved, save] = useSaved(`sobra:conciliacao:${accountId}:extrato:${month}`);
+  const [saved, save] = useSaved(savedKey(accountId, "extrato", month));
   const items = accountMovements(snap, accountId, month);
   const initialDefault = balanceAt(snap, accountId, month);
   const initial = saved.initial ?? plain(initialDefault);
@@ -133,10 +156,12 @@ function StatementCheck({ accountId, month }: { accountId: string; month: string
   const r = checkStatement(money(initial) ?? 0, money(final) ?? 0, items);
   const ready = money(final) != null && money(initial) != null;
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <div className="order-2 flex flex-col gap-4 lg:order-1">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="order-2 flex min-w-0 flex-col gap-4 lg:order-1">
         <MovementsTable title="Lançamentos do app no mês" items={items} empty="Nenhum lançamento pago nesta conta no mês." />
-        <BankRows kind="extrato" accountId={accountId} items={items} />
+        {file.info && <FileSummary info={file.info} fileName={file.fileName} month={month} onUse={() => onBalances(file.info!)} />}
+        <BankRows kind="extrato" accountId={accountId} items={items} month={month} file={file}
+          setFile={(f) => { setFile(f); if (f.info) onBalances(f.info); }} />
       </div>
       <Card className="order-1 h-fit lg:order-2">
         <h2 className="mb-3 text-sm font-bold uppercase tracking-wide">Conferência · Extrato da conta</h2>
@@ -156,18 +181,18 @@ function StatementCheck({ accountId, month }: { accountId: string; month: string
 }
 
 /** Conferência da fatura do cartão de crédito. */
-function InvoiceCheck({ cardId, month }: { cardId: string; month: string }) {
+function InvoiceCheck({ cardId, month, file, setFile }: { cardId: string; month: string } & FileProps) {
   const snap = useSnapshot()!;
-  const [saved, save] = useSaved(`sobra:conciliacao:${cardId}:fatura:${month}`);
+  const [saved, save] = useSaved(savedKey(cardId, "fatura", month));
   const items = cardMovements(snap, cardId, month);
   const invoice = saved.invoice ?? "";
   const r = checkInvoice(money(invoice) ?? 0, items);
   const ready = money(invoice) != null;
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <div className="order-2 flex flex-col gap-4 lg:order-1">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="order-2 flex min-w-0 flex-col gap-4 lg:order-1">
         <MovementsTable title="Compras lançadas nesta fatura" items={items} card empty="Nenhuma compra lançada no cartão para esta fatura." />
-        <BankRows kind="fatura" cardId={cardId} items={items} />
+        <BankRows kind="fatura" cardId={cardId} items={items} month={month} file={file} setFile={setFile} />
       </div>
       <Card className="order-1 h-fit lg:order-2">
         <h2 className="mb-3 text-sm font-bold uppercase tracking-wide">Conferência · Fatura do cartão</h2>
@@ -211,34 +236,105 @@ function MovementsTable({ title, items, empty, card }: { title: string; items: M
   );
 }
 
+/** Mês do extrato quando o período cabe num mês só. */
+function statementMonth(info: StatementInfo): string | null {
+  const a = info.periodStart, b = info.periodEnd ?? info.periodStart;
+  return a && b && monthOf(a) === monthOf(b) ? monthOf(a) : null;
+}
+
+/** Cabeçalho e conferências do próprio arquivo do banco. */
+function FileSummary({ info, fileName, month, onUse }: { info: StatementInfo; fileName?: string; month: string; onUse: () => void }) {
+  const m = statementMonth(info);
+  const recentes = info.checks;
+  const ok = (v: boolean | null, yes: string, no: string) => v == null ? null : (
+    <li className={`flex items-start gap-2 ${v ? "text-income" : "text-danger"}`}>
+      {v ? <Check aria-hidden className="mt-0.5 size-4 shrink-0" /> : <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />}{v ? yes : no}
+    </li>
+  );
+  return (
+    <Card>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <FileText aria-hidden className="size-5 text-accent" />
+          <div>
+            <h2 className="text-sm font-semibold">Extrato importado{info.bank ? ` · ${info.bank}` : ""}</h2>
+            <p className="text-xs text-text-muted">
+              {[info.agency && `Agência ${info.agency}`, info.account && `Conta ${info.account}`,
+                info.periodStart && `${shortDate(info.periodStart)} a ${shortDate(info.periodEnd ?? info.periodStart)}`].filter(Boolean).join(" · ") || fileName}
+              {info.generatedAt ? ` · gerado em ${info.generatedAt}` : ""}
+            </p>
+          </div>
+        </div>
+        {m && info.openingCents != null && info.closingCents != null && (
+          <Button size="sm" variant="secondary" onClick={onUse}>{m === month ? "Usar saldos do arquivo" : `Ir para ${monthLabel(m)}`}</Button>
+        )}
+      </div>
+      <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Stat label={`Saldo anterior${info.openingDate ? ` (${shortDate(info.openingDate).slice(0, 5)})` : ""}`} value={info.openingCents} />
+        <Stat label="Total de créditos" value={info.totalCreditCents} tone="in" />
+        <Stat label="Total de débitos" value={info.totalDebitCents} tone="out" />
+        <Stat label="Saldo final" value={info.closingCents} />
+      </dl>
+      <ul className="mt-3 flex flex-col gap-1 text-sm">
+        {ok(recentes.totalsOk, "Saldo anterior + créditos + débitos = saldo final.", "Saldo anterior + créditos + débitos não dá o saldo final do arquivo.")}
+        {ok(recentes.columnsOk, "As colunas Crédito e Débito somam o Total do arquivo.", "As colunas Crédito e Débito não somam o Total do arquivo.")}
+        {info.openingCents != null && ok(recentes.balanceMismatches === 0, "O Saldo do banco confere linha a linha.",
+          `${recentes.balanceMismatches} linha(s) com Saldo diferente do calculado.`)}
+        {info.dailyBalances.length > 0 && (
+          <li className="text-text-muted">Saldos diários da aplicação automática ({info.dailyBalances.length} dias) são só informativos e não entram na conciliação.</li>
+        )}
+      </ul>
+    </Card>
+  );
+}
+
+function Stat({ label, value, tone }: { label: string; value?: number; tone?: "in" | "out" }) {
+  return (
+    <div className="rounded-md bg-surface p-2">
+      <dt className="text-xs text-text-muted">{label}</dt>
+      <dd className={`num font-semibold ${tone === "in" ? "text-income" : tone === "out" ? "text-danger" : ""}`}>{value == null ? "—" : formatBRL(value)}</dd>
+    </div>
+  );
+}
+
+type Filter = "todos" | "ok" | "banco";
+
 /** Linhas do banco (arquivo ou digitadas), casadas com o app linha a linha. */
-function BankRows({ kind, accountId, cardId, items }: { kind: Mode; accountId?: string; cardId?: string; items: Movement[] }) {
+function BankRows({ kind, accountId, cardId, items, month, file, setFile }: { kind: Mode; accountId?: string; cardId?: string; items: Movement[]; month: string } & FileProps) {
   const { toast } = useShell();
-  const [rows, setRows] = useState<StatementRow[]>([]);
   const [error, setError] = useState("");
+  const [filter, setFilter] = useState<Filter>("todos");
   const [form, setForm] = useState({ date: today(), description: "", amount: "" });
   const [formError, setFormError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const fatura = kind === "fatura";
+  const all = file.rows;
+  // No extrato, cada mês confere só as suas linhas; a fatura usa o arquivo inteiro.
+  const rows = fatura ? all : all.filter((r) => monthOf(r.date) === month);
+  const others = all.length - rows.length;
   const m = matchRows(rows, items, { abs: fatura });
+  const matchedSet = new Set(m.matched.map((x) => x.row));
+  const columns = rows.some((r) => r.history != null);
+  const shown = [...rows].filter((r) => filter === "todos" || (filter === "ok") === matchedSet.has(r));
 
-  async function pick(file: File) {
+  async function pick(f: File) {
     setError("");
-    try { setRows(await readStatementFile(file)); } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível ler o arquivo."); }
+    try { setFile({ ...(await readStatementDetail(f)), fileName: f.name }); setFilter("todos"); }
+    catch (e) { setError(e instanceof Error ? e.message : "Não foi possível ler o arquivo."); }
   }
   function add(e: FormEvent) {
     e.preventDefault();
     const v = money(form.amount);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(form.date)) return setFormError("Data inválida.");
     if (!v) return setFormError(fatura ? "Informe o valor da compra." : "Informe o valor (negativo para saídas).");
-    setRows((r) => [...r, { date: form.date, description: form.description.trim(), amountCents: v }]);
+    setFile({ ...file, rows: [...all, { date: form.date, description: form.description.trim(), amountCents: v }] });
     setForm({ date: form.date, description: "", amount: "" }); setFormError("");
   }
   async function launch(row: StatementRow) {
     const amountCents = Math.abs(row.amountCents);
     try {
       if (fatura) await repo.createTransaction({ kind: "expense", amountCents, occurredOn: row.date, description: row.description || "Compra no cartão", cardId });
-      else await repo.createTransaction({ kind: row.amountCents > 0 ? "income" : "expense", amountCents, occurredOn: row.date, description: row.description || "Lançamento do extrato", accountId, isPaid: true });
+      else await repo.createTransaction({ kind: row.amountCents > 0 ? "income" : "expense", amountCents, occurredOn: row.date, description: (row.description || "Lançamento do extrato").slice(0, 140), accountId, isPaid: true });
       toast("Lançado no app");
     } catch (e) {
       toast(e instanceof Error ? e.message : "Não foi possível lançar.");
@@ -253,7 +349,7 @@ function BankRows({ kind, accountId, cardId, items }: { kind: Mode; accountId?: 
           <p className="text-xs text-text-muted">Importe o arquivo do banco ou digite as linhas para achar o que falta lançar.</p>
         </div>
         <div className="flex gap-2">
-          {rows.length > 0 && <Button size="sm" variant="ghost" onClick={() => setRows([])}><Trash2 aria-hidden className="size-4" />Limpar</Button>}
+          {all.length > 0 && <Button size="sm" variant="ghost" onClick={() => setFile({ rows: [] })}><Trash2 aria-hidden className="size-4" />Limpar</Button>}
           <Button size="sm" variant="secondary" onClick={() => fileRef.current?.click()}><FileUp aria-hidden className="size-4" />Importar OFX, CSV ou XLSX</Button>
           <input ref={fileRef} type="file" accept=".ofx,.qfx,.csv,.txt,.xlsx" className="hidden" aria-label="Arquivo do banco"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) void pick(f); e.target.value = ""; }} />
@@ -273,26 +369,61 @@ function BankRows({ kind, accountId, cardId, items }: { kind: Mode; accountId?: 
       </form>
       {formError && <p role="alert" className="mt-1 text-sm text-danger">{formError}</p>}
 
+      {others > 0 && (
+        <p className="mt-3 text-xs text-text-muted">{others} linha(s) do arquivo são de outros meses (como os Últimos Lançamentos). Troque o mês acima para conferi-las.</p>
+      )}
+
       {rows.length > 0 && (
         <div className="mt-4 flex flex-col gap-3">
-          <div className="grid grid-cols-3 gap-2 text-center text-xs">
-            <Pill tone="ok" label="Conciliados" n={m.matched.length} />
-            <Pill tone="bank" label="Só no banco" n={m.onlyStatement.length} />
+          <div role="group" aria-label="Filtrar linhas" className="grid grid-cols-3 gap-2 text-center text-xs">
+            <Pill tone="ok" label="Conciliados" n={m.matched.length} active={filter === "ok"} onClick={() => setFilter(filter === "ok" ? "todos" : "ok")} />
+            <Pill tone="bank" label="Só no banco" n={m.onlyStatement.length} active={filter === "banco"} onClick={() => setFilter(filter === "banco" ? "todos" : "banco")} />
             <Pill tone="app" label="Só no app" n={m.onlyApp.length} />
           </div>
-          {m.onlyStatement.length > 0 && (
-            <List title="Só no banco: faltam no app">
-              {m.onlyStatement.map((r, i) => (
-                <li key={`${r.date}-${i}`} className="flex items-center gap-3 py-2 text-sm">
-                  <span className="num w-20 shrink-0">{shortDate(r.date)}</span>
-                  <span className="min-w-0 flex-1 truncate">{r.description || "—"}</span>
-                  <span className="num">{formatBRL(fatura ? Math.abs(r.amountCents) : r.amountCents)}</span>
-                  <Button size="sm" onClick={() => launch(r)}>Lançar</Button>
-                </li>
-              ))}
-            </List>
-          )}
-          {m.onlyApp.length > 0 && (
+
+          <div className="-mx-4 overflow-x-auto px-4">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead><tr className="border-b border-border text-left text-xs text-text-muted">
+                <th className="py-2 pr-2 font-semibold" title="Dia do lançamento no banco">Data</th>
+                <th className="py-2 pr-2 font-semibold" title="Tipo do lançamento e, abaixo, quem pagou ou recebeu">{columns ? "Histórico" : "Descrição"}</th>
+                {columns && <th className="py-2 pr-2 font-semibold" title="Número do documento no banco">Docto.</th>}
+                {columns ? <>
+                  <th className="py-2 pr-2 text-right font-semibold" title="O que entrou na conta">Crédito (R$)</th>
+                  <th className="py-2 pr-2 text-right font-semibold" title="O que saiu da conta">Débito (R$)</th>
+                  <th className="py-2 pr-2 text-right font-semibold" title="Saldo após o lançamento. Em cinza, calculado pelo app quando o banco não informa.">Saldo (R$)</th>
+                </> : <th className="py-2 pr-2 text-right font-semibold">Valor</th>}
+                <th className="py-2 text-right font-semibold" title="Se a linha já existe no app">Situação</th>
+              </tr></thead>
+              <tbody>
+                {shown.map((r, i) => {
+                  const ok = matchedSet.has(r);
+                  const bal = r.balanceCents ?? r.runningCents;
+                  return (
+                    <tr key={`${r.date}-${r.doc ?? ""}-${i}`} className="border-b border-border align-top last:border-0">
+                      <td className="num whitespace-nowrap py-2 pr-2">{shortDate(r.date)}</td>
+                      <td className="py-2 pr-2">
+                        <div className="font-medium">{r.history ?? (r.description || "—")}</div>
+                        {r.detail && <div className="text-xs text-text-muted">{r.detail}</div>}
+                      </td>
+                      {columns && <td className="num py-2 pr-2 text-text-muted">{r.doc ?? "—"}</td>}
+                      {columns ? <>
+                        <td className="num whitespace-nowrap py-2 pr-2 text-right text-income">{r.creditCents ? plain(r.creditCents) : ""}</td>
+                        <td className="num whitespace-nowrap py-2 pr-2 text-right text-danger">{r.debitCents ? plain(r.debitCents) : ""}</td>
+                        <td className={`num whitespace-nowrap py-2 pr-2 text-right ${r.balanceCents == null ? "text-text-muted" : ""}`}>{bal == null ? "" : plain(bal)}</td>
+                      </> : <td className="num whitespace-nowrap py-2 pr-2 text-right">{formatBRL(fatura ? Math.abs(r.amountCents) : r.amountCents)}</td>}
+                      <td className="py-2 text-right">
+                        {ok
+                          ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-income"><Check aria-hidden className="size-4" />Conciliado</span>
+                          : <Button size="sm" onClick={() => launch(r)} aria-label={`Lançar ${r.description} de ${shortDate(r.date)}`}>Lançar</Button>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {m.onlyApp.length > 0 && filter === "todos" && (
             <List title="Só no app: não aparecem no banco">
               {m.onlyApp.map((it) => (
                 <li key={it.id} className="flex items-center gap-3 py-2 text-sm">
@@ -303,27 +434,18 @@ function BankRows({ kind, accountId, cardId, items }: { kind: Mode; accountId?: 
               ))}
             </List>
           )}
-          {m.matched.length > 0 && (
-            <List title="Conciliados">
-              {m.matched.map(({ row, item }) => (
-                <li key={item.id} className="flex items-center gap-3 py-2 text-sm">
-                  <Check aria-hidden className="size-4 shrink-0 text-income" />
-                  <span className="num w-20 shrink-0">{shortDate(row.date)}</span>
-                  <span className="min-w-0 flex-1 truncate">{row.description || item.description}</span>
-                  <span className="num">{formatBRL(item.amountCents)}</span>
-                </li>
-              ))}
-            </List>
-          )}
         </div>
       )}
     </Card>
   );
 }
 
-function Pill({ tone, label, n }: { tone: "ok" | "bank" | "app"; label: string; n: number }) {
+function Pill({ tone, label, n, active, onClick }: { tone: "ok" | "bank" | "app"; label: string; n: number; active?: boolean; onClick?: () => void }) {
   const cls = tone === "ok" ? "bg-accent-soft text-income" : tone === "bank" ? "bg-warning/15 text-text" : "bg-surface text-text";
-  return <div className={`rounded-md p-2 ${cls}`}><div className="num text-lg font-bold">{n}</div>{label}</div>;
+  const body = <><div className="num text-lg font-bold">{n}</div>{label}</>;
+  return onClick
+    ? <button type="button" aria-pressed={active} onClick={onClick} className={`rounded-md p-2 ${cls} ${active ? "ring-2 ring-accent" : ""}`}>{body}</button>
+    : <div className={`rounded-md p-2 ${cls}`}>{body}</div>;
 }
 
 function List({ title, children }: { title: string; children: ReactNode }) {
