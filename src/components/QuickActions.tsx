@@ -11,10 +11,11 @@ import { formatBRL } from "@/lib/money";
 import {
   dataSheet, exportFileName, filterForExport, periodLabels, periodTitle, reportHtml, reportSheets, type KindFilter, type Period,
 } from "@/lib/report";
-import { parseCsv, parseOfx, rowsFromTable, type StatementRow } from "@/lib/statement";
+import type { StatementRow } from "@/lib/statement";
+import { readStatementFile } from "@/lib/statementFile";
 import { transactionsCsv } from "@/lib/csv";
 import type { Snapshot, Transaction } from "@/lib/types";
-import { readXlsx, writeXlsx } from "@/lib/xlsx";
+import { writeXlsx } from "@/lib/xlsx";
 import { Dialog } from "./Dialog";
 import { initials } from "./PersonModals";
 import { Button, Field, inputClass } from "./ui";
@@ -67,18 +68,7 @@ export function ImportStatementModal({ snap, onClose, onDone }: { snap: Snapshot
   async function readFile(file: File) {
     setError(""); setFileName(file.name);
     try {
-      const lower = file.name.toLowerCase();
-      let parsed: StatementRow[];
-      if (lower.endsWith(".ofx") || lower.endsWith(".qfx")) parsed = parseOfx(await file.text());
-      else if (lower.endsWith(".xlsx")) parsed = rowsFromTable(await readXlsx(await file.arrayBuffer()));
-      else if (lower.endsWith(".xls")) throw new Error("Arquivos .xls antigos não são lidos. Abra no Excel e salve como .xlsx ou CSV.");
-      else {
-        const buf = await file.arrayBuffer();
-        let text = new TextDecoder("utf-8").decode(buf);
-        if (text.includes("�")) text = new TextDecoder("windows-1252").decode(buf); // bancos antigos usam Latin-1
-        parsed = /<OFX>|<STMTTRN>/i.test(text) ? parseOfx(text) : rowsFromTable(parseCsv(text));
-      }
-      if (!parsed.length) throw new Error("Não encontramos lançamentos neste arquivo.");
+      const parsed = await readStatementFile(file);
       setInverted(false);
       setRows(markDuplicates(parsed, accountId, false));
     } catch (e) {
