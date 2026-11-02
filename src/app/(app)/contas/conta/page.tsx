@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowLeftRight, Calculator, Pencil, PiggyBank, Plus, Trash2, User } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, Calculator, CreditCard, Pencil, PiggyBank, Plus, Scale, Trash2, User } from "lucide-react";
 import { AccountModal, BankAvatar, DeleteAccountDialog, RecalcModal, SubaccountModal } from "@/components/AccountModals";
 import { useShell } from "@/components/AppShell";
 import { cardBackground } from "@/components/CardModal";
@@ -14,6 +14,7 @@ import { useSession, useSnapshot } from "@/lib/data";
 import { monthOf, today } from "@/lib/dates";
 import { formatBRL } from "@/lib/money";
 import { accountBalances } from "@/lib/summary";
+import { accountCardExpenses } from "@/lib/reconcile";
 
 const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 type Tab = "extrato" | "transferencias" | "subcontas";
@@ -58,12 +59,15 @@ function Conta() {
   const years = Array.from(new Set([thisYear - 2, thisYear - 1, thisYear, thisYear + 1, year])).sort();
   const pick = (y: number, m: number) => setMonth(`${y}-${String(m + 1).padStart(2, "0")}-01`);
   const isSub = !!account.parentId;
+  const cardExpense = accountCardExpenses(snap, account.id, month);
+  const cardCount = snap.cards.filter((c) => c.paymentAccountId === account.id && !c.archived).length;
 
   const actions = [
     { label: "Transferir", icon: ArrowLeftRight, run: () => openNew("transfer", account.id) },
     ...(isSub ? [] : [{ label: "Subconta", icon: Plus, run: () => setModal("sub") }]),
     ...(isSub ? [] : [{ label: "Editar", icon: Pencil, run: () => setModal("edit") }]),
     { label: "Recalcular", icon: Calculator, run: () => setModal("recalc") },
+    ...(isSub ? [] : [{ label: "Conciliação bancária", icon: Scale, run: () => router.push(`/contas/conciliacao?id=${encodeURIComponent(account.id)}`) }]),
   ];
 
   return (
@@ -103,11 +107,17 @@ function Conta() {
         <Button size="sm" variant="danger" onClick={() => setModal("delete")}><Trash2 aria-hidden className="size-4" />Excluir</Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Stat label="Saldo Conta" value={formatBRL(st.balanceCents)} tone={st.balanceCents < 0 ? "text-expense" : ""} />
         <Stat label="Cheque Especial" value={st.overdraftCents == null ? "Não possui" : formatBRL(st.overdraftCents)} />
         <Stat label="Receitas Mês" value={formatBRL(st.incomeCents)} tone="text-income" />
         <Stat label="Despesas Mês" value={formatBRL(st.expenseCents)} tone="text-expense" />
+        {!isSub && (
+          <Link href={`/contas/conciliacao?id=${encodeURIComponent(account.id)}&modo=fatura`} className="col-span-2 block lg:col-span-1">
+            <Stat label="Despesas Cartão de Crédito" value={formatBRL(cardExpense)} tone="text-expense"
+              hint={cardCount ? `${cardCount === 1 ? "1 cartão ligado" : `${cardCount} cartões ligados`}` : "Nenhum cartão ligado"} icon />
+          </Link>
+        )}
       </div>
 
       <Card>
@@ -183,11 +193,12 @@ function Conta() {
   );
 }
 
-function Stat({ label, value, tone = "" }: { label: string; value: string; tone?: string }) {
+function Stat({ label, value, tone = "", hint, icon }: { label: string; value: string; tone?: string; hint?: string; icon?: boolean }) {
   return (
-    <Card className="p-3">
-      <div className="text-xs font-medium text-text-muted">{label}</div>
+    <Card className="h-full p-3">
+      <div className="flex items-center gap-1 text-xs font-medium text-text-muted">{icon && <CreditCard aria-hidden className="size-3.5" />}{label}</div>
       <div className={`num mt-1 text-base font-bold ${tone}`}>{value}</div>
+      {hint && <div className="mt-0.5 text-xs text-text-muted">{hint}</div>}
     </Card>
   );
 }
