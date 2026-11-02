@@ -12,6 +12,20 @@ export interface Workspace { id: ID; name: string; currency: "BRL"; }
 export interface Account {
   id: ID; workspaceId: ID; name: string; kind: AccountKind;
   initialBalanceCents: number; archived: boolean;
+  /** Detalhes da conta (opcionais: contas antigas não têm). */
+  bank?: string | null;
+  /** Etiqueta para diferenciar contas do mesmo banco. */
+  label?: string | null;
+  /** Dono da conta; null = o titular. */
+  personId?: ID | null;
+  /** Limite do cheque especial; null = não possui. */
+  overdraftCents?: number | null;
+  /** Cartão de débito: null = não possui. */
+  debitLast4?: string | null; debitBrand?: string | null; hasDebit?: boolean;
+  /** Cor da conta (chave das cores do app). */
+  color?: string | null;
+  /** Subconta (poupança ou caixinha) ligada a esta conta. */
+  parentId?: ID | null; subKind?: "poupanca" | "caixinha" | null;
 }
 
 export interface Card {

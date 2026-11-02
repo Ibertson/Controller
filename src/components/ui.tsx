@@ -102,3 +102,16 @@ export function PageTitle({ children, actions }: { children: ReactNode; actions?
     </div>
   );
 }
+
+/** Interruptor liga/desliga com o texto à esquerda. */
+export function Switch({ label, checked, onChange, id }: { label: ReactNode; checked: boolean; onChange: (v: boolean) => void; id: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-1">
+      <label htmlFor={id} className="text-sm font-medium">{label}</label>
+      <button id={id} type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)}
+        className="relative h-7 w-12 shrink-0 rounded-pill bg-border transition-colors aria-checked:bg-accent">
+        <span aria-hidden className={`absolute top-1 size-5 rounded-pill bg-white shadow-card transition-all ${checked ? "left-6" : "left-1"}`} />
+      </button>
+    </div>
+  );
+}

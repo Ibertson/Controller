@@ -1,67 +1,69 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { Landmark, Plus } from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
+import { ArrowLeftRight, ChevronRight, Plus } from "lucide-react";
+import { AccountModal, BankAvatar } from "@/components/AccountModals";
 import { useShell } from "@/components/AppShell";
-import { Button, Card, Field, Input, PageTitle, Skeleton, inputClass } from "@/components/ui";
-import { repo, useSnapshot } from "@/lib/data";
-import { formatBRL, parseBRL } from "@/lib/money";
+import { cardBackground } from "@/components/CardModal";
+import { Button, Card, PageTitle, Skeleton } from "@/components/ui";
+import { ACCOUNT_KINDS, accountHref, accountTitle, subaccounts } from "@/lib/accounts";
+import { useSnapshot } from "@/lib/data";
+import { formatBRL } from "@/lib/money";
 import { accountBalances, totalBalance } from "@/lib/summary";
-import type { AccountKind } from "@/lib/types";
 
-const kinds: Record<AccountKind, string> = { checking: "Conta corrente", savings: "Poupança", wallet: "Dinheiro", other: "Outra" };
 
 export default function Contas() {
   const snap = useSnapshot();
-  const { toast } = useShell();
+  const { toast, openNew } = useShell();
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [kind, setKind] = useState<AccountKind>("checking");
-  const [initial, setInitial] = useState("");
-  const [error, setError] = useState("");
 
   if (!snap) return <Skeleton className="h-64" />;
   const balances = accountBalances(snap);
-
-  async function save(e: FormEvent) {
-    e.preventDefault();
-    const neg = initial.trim().startsWith("-");
-    const cents = initial.trim() ? parseBRL(initial.replace("-", "")) : 0;
-    if (!name.trim()) return setError("Dê um nome para a conta.");
-    if (cents === null) return setError("Saldo inválido. Use algo como 1.250,00.");
-    await repo.upsertAccount({ name: name.trim(), kind, initialBalanceCents: neg ? -cents : cents, archived: false });
-    setName(""); setInitial(""); setError(""); setOpen(false); toast("Conta criada");
-  }
+  const accounts = snap.accounts.filter((a) => !a.archived && !a.parentId);
 
   return (
     <div>
-      <PageTitle actions={<Button size="sm" variant="secondary" onClick={() => setOpen(!open)}><Plus aria-hidden className="size-4" />Nova conta</Button>}>Contas</PageTitle>
-      <Card className="mb-4"><div className="text-xs font-medium text-text-muted">Saldo total</div><div className="num mt-1 text-xl font-bold">{formatBRL(totalBalance(snap))}</div></Card>
-      {open && (
-        <Card className="mb-4">
-          <form onSubmit={save} className="grid gap-3 sm:grid-cols-[1fr_180px_180px_auto] sm:items-end">
-            <Field label="Nome" htmlFor="acc-name" error={error}><Input id="acc-name" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Banco do dia a dia" /></Field>
-            <Field label="Tipo" htmlFor="acc-kind">
-              <select id="acc-kind" value={kind} onChange={(e) => setKind(e.target.value as AccountKind)} className={inputClass}>
-                {Object.entries(kinds).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-            </Field>
-            <Field label="Saldo de hoje" htmlFor="acc-initial"><Input id="acc-initial" inputMode="decimal" value={initial} onChange={(e) => setInitial(e.target.value)} placeholder="0,00" /></Field>
-            <Button type="submit">Salvar</Button>
-          </form>
-        </Card>
+      <PageTitle actions={
+        <div className="flex gap-2">
+          <Button size="sm" variant="secondary" onClick={() => openNew("transfer")}><ArrowLeftRight aria-hidden className="size-4" />Transferir</Button>
+          <Button size="sm" onClick={() => setOpen(true)}><Plus aria-hidden className="size-4" />Conta</Button>
+        </div>
+      }>Contas Bancárias</PageTitle>
+
+      {accounts.length === 0 ? (
+        <button type="button" onClick={() => setOpen(true)}
+          className="flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed border-border p-8 text-text-muted hover:bg-surface">
+          <Plus aria-hidden className="size-6" /><span className="font-semibold">Adicionar primeira conta bancária</span>
+        </button>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {accounts.map((a) => {
+            const subs = subaccounts(snap, a.id);
+            const subTotal = subs.reduce((s, x) => s + (balances.get(x.id) ?? 0), 0);
+            const bal = balances.get(a.id) ?? 0;
+            return (
+              <Link key={a.id} href={accountHref(a.id)} className="block rounded-lg p-4 text-white shadow-card transition-transform hover:-translate-y-0.5"
+                style={{ background: cardBackground({ color: a.color ?? "verde" }) }}>
+                <div className="flex items-center gap-3">
+                  <BankAvatar name={accountTitle(a)} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-semibold">{accountTitle(a)}</div>
+                    <div className="truncate text-xs opacity-80">{ACCOUNT_KINDS[a.kind]}{a.label ? ` · ${a.label}` : ""}</div>
+                  </div>
+                  <ChevronRight aria-hidden className="size-5 opacity-80" />
+                </div>
+                <div className="mt-3 text-xs opacity-80">Saldo atual</div>
+                <div className={`num text-xl font-bold ${bal < 0 ? "text-red-200" : ""}`}>{formatBRL(bal)}</div>
+                {subs.length > 0 && <div className="mt-1 text-xs opacity-80">+ {formatBRL(subTotal)} em {subs.length === 1 ? "1 subconta" : `${subs.length} subcontas`}</div>}
+              </Link>
+            );
+          })}
+        </div>
       )}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {snap.accounts.filter((a) => !a.archived).map((a) => (
-          <Card key={a.id}>
-            <div className="flex items-center gap-3">
-              <span className="grid size-9 place-items-center rounded-pill bg-accent-soft text-accent"><Landmark aria-hidden className="size-[18px]" /></span>
-              <div className="min-w-0 flex-1"><div className="truncate font-semibold">{a.name}</div><div className="text-xs text-text-muted">{kinds[a.kind]}</div></div>
-            </div>
-            <div className={`num mt-3 text-lg font-bold ${balances.get(a.id)! < 0 ? "text-expense" : ""}`}>{formatBRL(balances.get(a.id) ?? 0)}</div>
-          </Card>
-        ))}
-      </div>
+
+      <Card className="mt-4"><div className="num text-xl font-bold">{formatBRL(totalBalance(snap))}</div><div className="text-xs font-medium text-text-muted">Saldo total</div></Card>
+      {open && <AccountModal onClose={() => setOpen(false)} onSaved={(msg) => toast(msg)} />}
     </div>
   );
 }
