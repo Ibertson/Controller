@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Check, ChevronDown, CreditCard } from "lucide-react";
-import { ACCOUNT_KINDS, BANKS, DEBIT_BRANDS, SUB_COLORS, accountName, accountTitle, balanceBreakdown, bankInitials, initialForCurrent, subaccounts } from "@/lib/accounts";
+import { Check, ChevronDown, CreditCard, Search } from "lucide-react";
+import { ACCOUNT_KINDS, BANKS, DEBIT_BRANDS, avatarColor, searchBanks, SUB_COLORS, accountName, accountTitle, balanceBreakdown, bankInitials, initialForCurrent, subaccounts } from "@/lib/accounts";
 import { repo, useSession, useSnapshot } from "@/lib/data";
 import { formatBRL, parseBRL } from "@/lib/money";
 import { accountBalances } from "@/lib/summary";
@@ -34,6 +34,43 @@ function MoneyInput({ id, value, onChange, invalid }: { id: string; value: strin
 /** Círculo com as iniciais do banco (sem logos). */
 export function BankAvatar({ name, className = "size-10 text-sm" }: { name: string; className?: string }) {
   return <span aria-hidden className={`grid shrink-0 place-items-center rounded-pill bg-white/20 font-bold ${className}`}>{bankInitials(name)}</span>;
+}
+
+/** Círculo pequeno com as iniciais do banco, cor fixa por nome. */
+export function BankDot({ name }: { name: string }) {
+  return <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-pill text-[11px] font-bold text-white" style={{ background: avatarColor(name) }}>{bankInitials(name)}</span>;
+}
+
+/** "Selecionar Banco": lista com busca; sem resultado, usa o nome digitado. */
+export function BankPicker({ onClose, onPick }: { onClose: () => void; onPick: (bank: string) => void }) {
+  const [q, setQ] = useState("");
+  const list = searchBanks(q, BANKS);
+  const typed = q.trim();
+  return (
+    <Dialog onClose={onClose} title={<h2 className="text-lg font-semibold">Selecionar Banco</h2>}>
+      <div className="relative mb-2">
+        <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
+        <Input autoFocus aria-label="Buscar banco" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar banco..." className="pl-9"
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); const pick = list[0] ?? typed; if (pick) onPick(pick); } }} />
+      </div>
+      <ul className="-mx-2 max-h-[60dvh] overflow-y-auto" aria-label="Bancos">
+        {list.map((b) => (
+          <li key={b}>
+            <button type="button" onClick={() => onPick(b)} className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm hover:bg-surface">
+              <BankDot name={b} />{b}
+            </button>
+          </li>
+        ))}
+        {list.length === 0 && typed && (
+          <li>
+            <button type="button" onClick={() => onPick(typed)} className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm hover:bg-surface">
+              <BankDot name={typed} />Usar &quot;{typed}&quot;
+            </button>
+          </li>
+        )}
+      </ul>
+    </Dialog>
+  );
 }
 
 /** Faixa colorida da conta (prévia e topo da página da conta). */
@@ -101,6 +138,7 @@ export function AccountModal({ account, onClose, onSaved }: { account?: Account;
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [picking, setPicking] = useState(false);
   const set = <K extends keyof typeof f>(k: K) => (v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
   if (!snap) return null;
   const people = snap.people.filter((p) => !p.archived);
@@ -162,15 +200,15 @@ export function AccountModal({ account, onClose, onSaved }: { account?: Account;
           </select>
         </Field>
         <Field label="Banco *" htmlFor="acc-bank" error={err("bank")}>
-          <div className="relative">
-            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-white">
-              <span className="grid size-7 place-items-center rounded-pill text-[10px] font-bold" style={{ background: cardBackground({ color: f.color }) }}>{bankInitials(f.bank || "?")}</span>
-            </span>
-            <Input id="acc-bank" list="acc-banks" value={f.bank} onChange={(e) => set("bank")(e.target.value)} placeholder="Escolha ou digite o banco"
-              className="pl-11" aria-invalid={!!err("bank") || undefined} aria-describedby={err("bank") ? "acc-bank-error" : undefined} />
-            <datalist id="acc-banks">{BANKS.map((b) => <option key={b} value={b} />)}</datalist>
-          </div>
+          <button id="acc-bank" type="button" onClick={() => setPicking(true)} aria-haspopup="dialog"
+            aria-describedby={err("bank") ? "acc-bank-error" : undefined}
+            className={`${inputClass} flex items-center gap-3 text-left ${err("bank") ? "border-danger" : ""}`}>
+            {f.bank ? <BankDot name={f.bank} /> : null}
+            <span className={`flex-1 truncate ${f.bank ? "" : "text-text-muted"}`}>{f.bank || "Selecione o banco"}</span>
+            <ChevronDown aria-hidden className="size-4 text-text-muted" />
+          </button>
         </Field>
+        {picking && <BankPicker onClose={() => setPicking(false)} onPick={(b) => { set("bank")(b); setPicking(false); }} />}
         <Field label="Tipo de Conta" htmlFor="acc-kind">
           <select id="acc-kind" className={inputClass} value={f.kind} onChange={(e) => set("kind")(e.target.value as AccountKind)}>
             {Object.entries(ACCOUNT_KINDS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}

@@ -45,3 +45,15 @@ describe("contas", () => {
     expect(initialForCurrent(s, a, 2000)).toBe(2300);
   });
 });
+
+describe("bancos", () => {
+  it("busca sem acento e mantém a ordem", async () => {
+    const { searchBanks, BANKS, avatarColor } = await import("./accounts");
+    expect(BANKS[0]).toBe("Nubank");
+    expect(searchBanks("itau")).toEqual(["Itaú", "Itaú Empresas", "Itaú Iti", "Itaú Personnalité"]);
+    expect(searchBanks("brasilia")).toEqual(["Banco BRB (Banco de Brasília)"]);
+    expect(searchBanks("").length).toBe(BANKS.length);
+    expect(new Set(BANKS).size).toBe(BANKS.length);
+    expect(avatarColor("Nubank")).toBe(avatarColor("Nubank"));
+  });
+});
