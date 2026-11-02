@@ -61,7 +61,7 @@ export function parseOfx(text: string): StatementRow[] {
 
 /** CSV com vírgula, ponto e vírgula ou tab; aceita aspas. */
 export function parseCsv(text: string): string[][] {
-  const lines = text.replace(/^﻿/, "").split(/\r?\n/).filter((l) => l.trim());
+  const lines = text.replace(/^﻿/, "").split(/\r\n|\r|\n/).filter((l) => l.trim());
   const sample = lines.slice(0, 10).join("\n");
   const delim = [";", "\t", ","].map((d) => [d, sample.split(d).length] as const).sort((a, b) => b[1] - a[1])[0][0];
   return lines.map((line) => {
