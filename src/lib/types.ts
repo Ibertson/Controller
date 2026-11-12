@@ -7,7 +7,16 @@ export type AccountKind = "checking" | "savings" | "wallet" | "other";
 export type CategoryKind = "expense" | "income" | "both";
 export type TransactionKind = "expense" | "income" | "transfer" | "card_payment";
 
-export interface Workspace { id: ID; name: string; currency: "BRL"; }
+export type WorkspaceKind = "personal" | "business";
+export type CompanyType = "mei" | "me" | "epp" | "ltda" | "slu" | "sa" | "autonomo" | "outro";
+/** Dados da empresa (espaço empresarial). */
+export interface Company { name: string; cnpj: string | null; activity: string; companyType: CompanyType; }
+/** Espaço de dados: o pessoal e, se cadastrada, o da empresa. kind ausente = pessoal (dados antigos). */
+export interface Workspace {
+  id: ID; name: string; currency: "BRL"; kind?: WorkspaceKind;
+  cnpj?: string | null; activity?: string; companyType?: CompanyType | null;
+}
+export interface WorkspaceRef { id: ID; kind: WorkspaceKind; name: string }
 
 export interface Account {
   id: ID; workspaceId: ID; name: string; kind: AccountKind;
@@ -161,6 +170,8 @@ export interface Reminder {
 
 export interface Snapshot {
   workspace: Workspace;
+  /** Todos os espaços de quem está conectado (pessoal e empresa). */
+  workspaces?: WorkspaceRef[];
   accounts: Account[];
   cards: Card[];
   categories: Category[];

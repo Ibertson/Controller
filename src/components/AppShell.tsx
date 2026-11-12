@@ -6,12 +6,15 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import {
   Bell, Car, CircleDollarSign, CircleUserRound, FileText, Heart, PlayCircle, TrendingUp, WalletCards,
   ChevronDown, ChevronLeft, ChevronRight, CreditCard, Flag, HandCoins, Home, Landmark, ListOrdered, Menu, Plus, Tags,
-  X,
+  X, Activity, BarChart3, Boxes, CalendarClock, ChartLine, ClipboardList, FileCheck2, FileSpreadsheet, Link2,
+  List, Package, PiggyBank, ReceiptText, RefreshCw, Search, Settings, ShoppingCart, Store, Trophy, UserCheck, UserRound,
+  Users, Wallet, Wrench, LayoutDashboard, Calculator, type LucideIcon,
 } from "lucide-react";
 import { addMonths, monthLabel, monthOf, today } from "@/lib/dates";
 import { defaultCategoryChanges } from "@/lib/categories";
 import { repo, useLoadError, useSession, useSnapshot } from "@/lib/data";
 import { expiredTrash } from "@/lib/data/repo";
+import { SpaceBar, useSpace } from "./business";
 import { SyncBanner } from "./SyncBanner";
 import { TransactionModal } from "./TransactionModal";
 import { Button, Skeleton } from "./ui";
@@ -31,7 +34,11 @@ export function useShell() {
   return c;
 }
 
-const nav = [
+interface NavItem { href: string; label: string; icon: LucideIcon }
+interface NavGroup { group: string; items: NavItem[] }
+const mod = (slug: string) => `/empresa/m/${slug}`;
+
+const nav: NavGroup[] = [
   { group: "Essencial", items: [
     { href: "/", label: "Painel", icon: Home },
     { href: "/transacoes", label: "Transações", icon: CircleDollarSign },
@@ -57,15 +64,80 @@ const nav = [
   ] },
 ];
 
+/** Menu do espaço Empresarial: o que já existe usa as telas do app com os dados da empresa. */
+const businessNav: NavGroup[] = [
+  { group: "Painel", items: [{ href: "/", label: "Painel Empresarial", icon: LayoutDashboard }] },
+  { group: "Marketing", items: [{ href: mod("link-bio"), label: "Link Bio", icon: Link2 }] },
+  { group: "Operacional", items: [
+    { href: mod("ponto-de-venda"), label: "Ponto de Venda", icon: Store },
+    { href: mod("caixa-diario"), label: "Caixa Diário", icon: Wallet },
+    { href: mod("estoque"), label: "Estoque", icon: Boxes },
+  ] },
+  { group: "Vendas e clientes", items: [
+    { href: mod("pedidos"), label: "Pedidos", icon: Package },
+    { href: "/transacoes?tipo=receitas", label: "Vendas", icon: CircleDollarSign },
+    { href: "/extrato", label: "Extrato", icon: List },
+    { href: "/previsao", label: "Receitas Recorrentes", icon: RefreshCw },
+    { href: "/pessoas", label: "Clientes & Recebíveis", icon: Users },
+    { href: "/lembretes", label: "Agenda / Atividades", icon: CalendarClock },
+  ] },
+  { group: "Financeiro", items: [
+    { href: "/transacoes?tipo=despesas", label: "Despesas / Compras", icon: ShoppingCart },
+    { href: "/contas", label: "Contas Bancárias", icon: Landmark },
+    { href: "/dividas", label: "Financiamentos", icon: Car },
+    { href: "/previsao", label: "Gastos Fixos", icon: CalendarClock },
+    { href: "/empresa/fluxo-de-caixa", label: "Fluxo de Caixa", icon: ChartLine },
+    { href: "/empresa/dre", label: "DRE Simplificado", icon: FileSpreadsheet },
+  ] },
+  { group: "Produtos e serviços", items: [
+    { href: mod("produtos"), label: "Produtos", icon: Package },
+    { href: mod("servicos"), label: "Serviços", icon: Wrench },
+    { href: mod("orcamentos"), label: "Orçamentos", icon: FileCheck2 },
+  ] },
+  { group: "Fiscal e RH", items: [
+    { href: mod("notas-fiscais"), label: "Notas Fiscais", icon: ReceiptText },
+    { href: mod("obrigacoes-fiscais"), label: "Obrigações Fiscais", icon: ClipboardList },
+    { href: mod("pro-labore"), label: "Pró-Labore", icon: UserRound },
+    { href: mod("funcionarios"), label: "Funcionários", icon: UserCheck },
+  ] },
+  { group: "Relatórios", items: [
+    { href: mod("ranking-produtos"), label: "Ranking Produtos", icon: Trophy },
+    { href: mod("relatorios"), label: "Relatórios", icon: BarChart3 },
+  ] },
+  { group: "Sistema", items: [
+    { href: "/categorias", label: "Categorias", icon: Tags },
+    { href: "/empresa/precificacao", label: "Precificação", icon: Calculator },
+    { href: "/empresa/configuracoes", label: "Configurações", icon: Settings },
+  ] },
+  { group: "Avançado", items: [
+    { href: mod("metricas"), label: "Métricas Tempo Real", icon: Activity },
+    { href: mod("analytics"), label: "Analytics", icon: TrendingUp },
+    { href: mod("gestao-de-capital"), label: "Gestão de Capital", icon: PiggyBank },
+  ] },
+];
+
 const categoriesRunning = new Set<string>();
+const fold = (v: string) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const path = usePathname();
+  const { kind } = useSpace();
   const [closed, setClosed] = useState<Record<string, boolean>>({});
+  const [query, setQuery] = useState("");
+  const q = fold(query.trim());
+  const groups = (kind === "business" ? businessNav : nav)
+    .map((g) => ({ ...g, items: q ? g.items.filter((i) => fold(i.label).includes(q)) : g.items }))
+    .filter((g) => g.items.length);
   return (
     <nav aria-label="Principal" className="flex flex-col gap-1">
-      {nav.map((g) => {
-        const open = !closed[g.group];
+      <div className="relative mb-1">
+        <Search aria-hidden className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
+        <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar no menu..." aria-label="Buscar no menu"
+          className="h-9 w-full rounded-md border border-border bg-surface pl-8 pr-2 text-sm placeholder:text-text-muted" />
+      </div>
+      {groups.length === 0 && <p className="px-2 py-3 text-sm text-text-muted">Nada encontrado.</p>}
+      {groups.map((g) => {
+        const open = !!q || !closed[g.group];
         const id = `menu-${g.group.toLowerCase()}`;
         return (
           <div key={g.group}>
@@ -76,9 +148,10 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
             {open && (
               <div id={id} className="flex flex-col gap-0.5">
                 {g.items.map(({ href, label, icon: Icon }) => {
-                  const active = href === "/" ? path === "/" : path.startsWith(href);
+                  const base = href.split("?")[0];
+                  const active = base === "/" ? path === "/" : path === base || path.startsWith(base + "/");
                   return (
-                    <Link key={href} href={href} onClick={onNavigate} aria-current={active ? "page" : undefined}
+                    <Link key={label} href={href} onClick={onNavigate} aria-current={active ? "page" : undefined}
                       className="relative flex items-center gap-3 rounded-md px-2 py-1.5 text-text hover:bg-surface aria-[current=page]:font-semibold aria-[current=page]:text-accent
                         aria-[current=page]:before:absolute aria-[current=page]:before:-left-1 aria-[current=page]:before:inset-y-1.5 aria-[current=page]:before:w-1 aria-[current=page]:before:rounded-pill aria-[current=page]:before:bg-accent">
                       <span className="grid size-9 shrink-0 place-items-center rounded-pill bg-accent text-on-accent"><Icon aria-hidden className="size-[18px]" /></span>
@@ -126,7 +199,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     categoriesRunning.add(key);
     void (async () => {
       try {
-        for (const c of defaultCategoryChanges(repo.snapshot()?.categories ?? [])) await repo.upsertCategory(c);
+        const snap = repo.snapshot();
+        for (const c of defaultCategoryChanges(snap?.categories ?? [], snap?.workspace.kind ?? "personal")) await repo.upsertCategory(c);
         localStorage.setItem(key, "1");
       } catch { /* tenta de novo na próxima vez que o app abrir */ }
       categoriesRunning.delete(key);
@@ -218,11 +292,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <span className="min-w-28 text-center" aria-live="polite">{monthLabel(month)}</span>
                   <button aria-label="Próximo mês" onClick={() => setMonth(addMonths(month, 1))} className="grid size-8 place-items-center rounded-sm border border-border hover:bg-surface"><ChevronRight className="size-4" /></button>
                 </div>
-              ) : <span className="font-semibold lg:hidden">Sobra</span>}
+              ) : null}
             </div>
+            <div className="flex items-center gap-3">
+            <SpaceBar onError={toast} />
             {showNew && <button onClick={() => openNew()} className="hidden h-10 items-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-on-accent hover:bg-accent-hover lg:inline-flex">
               <Plus aria-hidden className="size-4" />Novo lançamento
             </button>}
+            </div>
           </header>
           <SyncBanner />
 
