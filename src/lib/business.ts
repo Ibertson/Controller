@@ -3,25 +3,25 @@ import { normName } from "./categories";
 import { budgetMonth } from "./summary";
 import type { Category, CompanyType, Snapshot, Transaction } from "./types";
 
-export interface CompanyTypeInfo { value: CompanyType; label: string; short: string; hint: string }
+export interface CompanyTypeInfo { value: CompanyType; label: string; short: string; hint: string; code?: string }
 
 /** Tipos que aparecem no cadastro, com a dica mostrada embaixo do campo. */
 export const COMPANY_TYPES: CompanyTypeInfo[] = [
-  { value: "mei", label: "MEI (Microempreendedor Individual)", short: "MEI", hint: "Limite anual: R$ 81.000,00" },
-  { value: "me", label: "ME (Microempresa)", short: "ME", hint: "Limite anual: até R$ 360.000,00" },
-  { value: "me_simples", label: "ME - Simples Nacional", short: "ME - Simples Nacional", hint: "Limite anual: até R$ 360.000,00" },
-  { value: "epp", label: "EPP (Empresa de Pequeno Porte)", short: "EPP", hint: "Limite anual: até R$ 4.800.000,00" },
-  { value: "epp_simples", label: "EPP - Simples Nacional", short: "EPP - Simples Nacional", hint: "Limite anual: até R$ 4.800.000,00" },
-  { value: "presumido", label: "Lucro Presumido", short: "Lucro Presumido", hint: "Regime tributário: Lucro Presumido" },
-  { value: "real", label: "Lucro Real", short: "Lucro Real", hint: "Regime tributário: Lucro Real" },
-  { value: "outro", label: "Outro tipo de empresa", short: "", hint: "Você poderá ajustar os limites nas configurações" },
+  { value: "mei", label: "MEI (Microempreendedor Individual)", short: "MEI", hint: "Limite anual: R$ 81.000,00", code: "MEI" },
+  { value: "me", label: "ME (Microempresa)", short: "ME", hint: "Limite anual: até R$ 360.000,00", code: "ME" },
+  { value: "me_simples", label: "ME - Simples Nacional", short: "ME - Simples Nacional", hint: "Limite anual: até R$ 360.000,00", code: "ME_SN" },
+  { value: "epp", label: "EPP (Empresa de Pequeno Porte)", short: "EPP", hint: "Limite anual: até R$ 4.800.000,00", code: "EPP" },
+  { value: "epp_simples", label: "EPP - Simples Nacional", short: "EPP - Simples Nacional", hint: "Limite anual: até R$ 4.800.000,00", code: "EPP_SN" },
+  { value: "presumido", label: "Lucro Presumido", short: "Lucro Presumido", hint: "Regime tributário: Lucro Presumido", code: "LP" },
+  { value: "real", label: "Lucro Real", short: "Lucro Real", hint: "Regime tributário: Lucro Real", code: "LR" },
+  { value: "outro", label: "Outro tipo de empresa", short: "", hint: "Você poderá ajustar os limites nas configurações", code: "OUTRO" },
 ];
 /** Tipos do primeiro cadastro, que não aparecem mais na lista mas continuam valendo. */
 const LEGACY_TYPES: CompanyTypeInfo[] = [
-  { value: "ltda", label: "LTDA (Sociedade Limitada)", short: "LTDA", hint: "" },
-  { value: "slu", label: "SLU (Sociedade Limitada Unipessoal)", short: "SLU", hint: "" },
-  { value: "sa", label: "S/A (Sociedade Anônima)", short: "S/A", hint: "" },
-  { value: "autonomo", label: "Autônomo / Profissional liberal", short: "Autônomo", hint: "" },
+  { value: "ltda", label: "LTDA (Sociedade Limitada)", short: "LTDA", hint: "", code: "LTDA" },
+  { value: "slu", label: "SLU (Sociedade Limitada Unipessoal)", short: "SLU", hint: "", code: "SLU" },
+  { value: "sa", label: "S/A (Sociedade Anônima)", short: "S/A", hint: "", code: "SA" },
+  { value: "autonomo", label: "Autônomo / Profissional liberal", short: "Autônomo", hint: "", code: "AUTONOMO" },
 ];
 export const companyTypeInfo = (t: CompanyType | null | undefined) => [...COMPANY_TYPES, ...LEGACY_TYPES].find((x) => x.value === t);
 

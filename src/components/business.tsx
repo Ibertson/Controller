@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { AlertTriangle, Building2, Check, CircleCheck, Lightbulb, User } from "lucide-react";
+import { AlertTriangle, Building2, Check, ChevronDown, CircleCheck, Lightbulb, Settings, User } from "lucide-react";
 import { COMPANY_TYPES, cnpjDigits, companyTypeInfo, formatCnpj, isValidCnpj, overdue, parseCents } from "@/lib/business";
 import { repo, useSnapshot } from "@/lib/data";
 import { companyOf } from "@/lib/data/repo";
@@ -221,6 +221,52 @@ export function StatusPill() {
               </ul>
             </>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Cartão da empresa no topo do menu do Empresarial: nome, tipo e atalhos. */
+export function CompanySwitcher({ onNavigate, onError }: { onNavigate?: () => void; onError?: (msg: string) => void }) {
+  const { company } = useSpace();
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close); document.addEventListener("keydown", close);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", close); };
+  }, [open]);
+  if (!company) return null;
+  const code = companyTypeInfo(company.companyType)?.code;
+  const item = "flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm hover:bg-surface";
+  return (
+    <div ref={ref} className="relative mb-2">
+      <button type="button" aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen(!open)}
+        className="flex w-full items-center gap-2.5 rounded-lg border border-border bg-surface p-2 text-left hover:bg-surface-raised">
+        <span className="grid size-9 shrink-0 place-items-center rounded-pill bg-accent text-on-accent"><Building2 aria-hidden className="size-[18px]" /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold">{company.name}</span>
+          {code && <span className="block text-xs text-text-muted">{code}</span>}
+        </span>
+        <ChevronDown aria-hidden className={`size-4 shrink-0 text-text-muted transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div role="menu" className="absolute inset-x-0 top-full z-40 mt-1 rounded-lg border border-border bg-bg p-1 shadow-pop">
+          <Link role="menuitem" href="/empresa/configuracoes" className={item} onClick={() => { setOpen(false); onNavigate?.(); }}>
+            <Settings aria-hidden className="size-4 text-text-muted" />Configurações da empresa
+          </Link>
+          <button role="menuitem" type="button" className={item} onClick={async () => {
+            setOpen(false);
+            try { await repo.switchWorkspace("personal"); onNavigate?.(); router.push("/"); }
+            catch (e) { onError?.(e instanceof Error ? e.message : "Não foi possível trocar."); }
+          }}>
+            <User aria-hidden className="size-4 text-text-muted" />Voltar ao Pessoal
+          </button>
         </div>
       )}
     </div>

@@ -14,7 +14,7 @@ import { addMonths, monthLabel, monthOf, today } from "@/lib/dates";
 import { defaultCategoryChanges } from "@/lib/categories";
 import { repo, useLoadError, useSession, useSnapshot } from "@/lib/data";
 import { expiredTrash } from "@/lib/data/repo";
-import { SpaceBar, useSpace } from "./business";
+import { CompanySwitcher, SpaceBar, useSpace } from "./business";
 import { SyncBanner } from "./SyncBanner";
 import { TransactionModal } from "./TransactionModal";
 import { Button, Skeleton } from "./ui";
@@ -130,6 +130,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
     .filter((g) => g.items.length);
   return (
     <nav aria-label="Principal" className="flex flex-col gap-1">
+      {kind === "business" && <CompanySwitcher onNavigate={onNavigate} />}
       <div className="relative mb-1">
         <Search aria-hidden className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
         <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar no menu..." aria-label="Buscar no menu"
@@ -164,6 +165,11 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
           </div>
         );
       })}
+      {kind === "business" && !q && (
+        <p className="mt-4 border-t border-border px-2 pt-3 text-[11px] leading-tight text-text-muted">
+          <span className="block font-semibold">v1.0 - Painel Empresarial</span>Gestão completa para seu CNPJ
+        </p>
+      )}
     </nav>
   );
 }
@@ -271,7 +277,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </aside>
 
         {drawer && (
-          <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
+          <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
             <button aria-label="Fechar menu" className="absolute inset-0 bg-text/40" onClick={() => setDrawer(false)} />
             <div className="absolute inset-y-0 left-0 w-72 overflow-y-auto bg-bg px-3 py-4 shadow-pop">
               <div className="flex items-center justify-between"><Logo />
