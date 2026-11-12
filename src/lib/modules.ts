@@ -8,8 +8,6 @@ export const MODULES: Module[] = [
     today: { href: "/extrato", label: "Confira o dia no Extrato" } },
   { slug: "estoque", label: "Estoque", description: "Quantidade de cada produto, entradas de compra, saídas por venda e aviso de estoque mínimo." },
   { slug: "pedidos", label: "Pedidos", description: "Pedidos de clientes com situação (novo, em preparo, entregue) e o valor a receber de cada um." },
-  { slug: "produtos", label: "Produtos", description: "Cadastro de produtos com código, custo, preço de venda e estoque.",
-    today: { href: "/empresa/precificacao", label: "Calcule o preço em Precificação" } },
   { slug: "servicos", label: "Serviços", description: "Cadastro de serviços com preço, duração e custo de cada um." },
   { slug: "orcamentos", label: "Orçamentos", description: "Orçamentos para clientes com itens, validade e aprovação que vira venda." },
   { slug: "notas-fiscais", label: "Notas Fiscais", description: "Registro das notas emitidas e recebidas: número, cliente ou fornecedor, valor e data." },

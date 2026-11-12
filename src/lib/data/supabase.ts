@@ -2,7 +2,7 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildTransactions } from "../transactions";
-import type { Account, Card, Category, Company, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
+import type { Account, Card, Category, Company, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import { Outbox, browserStore, isNetworkFailure, type Op, type RunResult, type SyncStatus } from "./outbox";
 import { emptySnapshot } from "./seed";
@@ -428,6 +428,32 @@ export class SupabaseRepo implements Repo {
     });
     if (r.error?.code === "23505") throw new Error("Esse endereço já está em uso. Escolha outro.");
     must(r);
+  }
+
+  async listProducts() {
+    if (!this.data) throw new Error("não autenticado");
+    const rows = must(await this.db.from("products").select("*").eq("workspace_id", this.data.workspace.id).order("created_at", { ascending: false })) as Row[];
+    return rows.map((r): Product => ({
+      id: r.id as string, name: r.name as string, category: r.category as string, description: r.description as string,
+      sku: r.sku as string, unit: r.unit as string, costCents: Number(r.cost_cents), priceCents: Number(r.price_cents),
+      stock: Number(r.stock), minStock: Number(r.min_stock), photo: (r.photo as string | null) ?? null, active: r.active as boolean,
+      createdAt: r.created_at as string,
+    }));
+  }
+
+  async saveProduct(p: Product) {
+    if (!this.data) throw new Error("não autenticado");
+    if (!online()) throw new Error(OFFLINE_MSG);
+    must(await this.db.from("products").upsert({
+      id: p.id, workspace_id: this.data.workspace.id, name: p.name, category: p.category, description: p.description, sku: p.sku,
+      unit: p.unit, cost_cents: p.costCents, price_cents: p.priceCents, stock: p.stock, min_stock: p.minStock, photo: p.photo, active: p.active,
+      created_at: p.createdAt,
+    }));
+  }
+
+  async deleteProduct(id: string) {
+    if (!online()) throw new Error(OFFLINE_MSG);
+    must(await this.db.from("products").delete().eq("id", id));
   }
 
   async publicBio(slug: string) {

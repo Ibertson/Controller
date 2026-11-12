@@ -1,7 +1,7 @@
 "use client";
 
 import { buildTransactions } from "../transactions";
-import type { Company, GoalContribution, Profile, Snapshot, WorkspaceKind } from "../types";
+import type { Company, GoalContribution, Product, Profile, Snapshot, WorkspaceKind } from "../types";
 import { today } from "../dates";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import type { BioPage } from "../bio";
@@ -26,6 +26,7 @@ function withList(open: Snapshot, others: Snapshot[]): Snapshot {
 
 /** Guarda tudo no navegador. Serve para usar já, sem servidor; dados ficam só neste aparelho. */
 const BIO_KEY = "sobra:bio";
+const PRODUCTS_KEY = "sobra:products";
 
 export class LocalRepo implements Repo {
   readonly mode = "local" as const;
@@ -134,6 +135,26 @@ export class LocalRepo implements Repo {
     try { localStorage.setItem(BIO_KEY, JSON.stringify(all)); }
     catch { throw new Error("Sem espaço neste aparelho. Use imagens menores."); }
   }
+  private allProducts(): Record<string, Product[]> {
+    try { return JSON.parse(localStorage.getItem(PRODUCTS_KEY) ?? "{}") as Record<string, Product[]>; } catch { return {}; }
+  }
+  private putProducts(list: Product[]) {
+    const all = this.allProducts();
+    all[this.data().workspace.id] = list;
+    try { localStorage.setItem(PRODUCTS_KEY, JSON.stringify(all)); }
+    catch { throw new Error("Sem espaço neste aparelho. Use fotos menores."); }
+  }
+  async listProducts() {
+    return [...(this.allProducts()[this.data().workspace.id] ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+  async saveProduct(p: Product) {
+    const list = await this.listProducts();
+    this.putProducts(list.some((x) => x.id === p.id) ? list.map((x) => (x.id === p.id ? p : x)) : [p, ...list]);
+  }
+  async deleteProduct(id: string) {
+    this.putProducts((await this.listProducts()).filter((x) => x.id !== id));
+  }
+
   async publicBio(slug: string) {
     return Object.values(this.bios()).find((b) => b.slug === slug && b.published) ?? null;
   }
