@@ -1,8 +1,26 @@
 // Cadastro de produtos da empresa: margem, totais do catálogo e categorias.
 import type { Product } from "./types";
 
-/** Categorias sugeridas no botão "Usar padrão". */
-export const DEFAULT_PRODUCT_CATEGORIES = ["Alimentos", "Bebidas", "Roupas e acessórios", "Beleza e cuidados", "Casa e decoração", "Eletrônicos", "Papelaria", "Outros"];
+/** Categorias da lista "Selecione a categoria" (o produto guarda só o nome). */
+export const PRODUCT_CATEGORIES: { name: string; emoji: string }[] = [
+  { name: "Vendas", emoji: "🛍️" }, { name: "Mercadorias", emoji: "📦" }, { name: "Serviços", emoji: "🧰" },
+  { name: "Embalagens", emoji: "🎁" }, { name: "Aluguel", emoji: "🏠" }, { name: "Comissões", emoji: "🧾" },
+  { name: "Outros", emoji: "🪙" }, { name: "Energia", emoji: "⚡" }, { name: "Água", emoji: "💧" },
+  { name: "Internet", emoji: "🌐" }, { name: "Funcionários", emoji: "👥" }, { name: "Impostos", emoji: "🏛️" },
+  { name: "Marketing", emoji: "📣" }, { name: "Manutenção", emoji: "🔧" }, { name: "Software", emoji: "💻" },
+  { name: "Transporte", emoji: "🚚" },
+];
+
+/** Opções do seletor: as fixas, depois as criadas pela empresa e a do produto (se for antiga), sem repetir. */
+export function categoryOptions(custom: string[], current = ""): { name: string; emoji: string }[] {
+  const out = [...PRODUCT_CATEGORIES];
+  const seen = new Set(out.map((c) => c.name.toLowerCase()));
+  for (const n of [...custom, current]) {
+    const t = n.trim();
+    if (t && !seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); out.push({ name: t, emoji: "🏷️" }); }
+  }
+  return out;
+}
 
 export const UNITS = [
   { value: "un", label: "Unidade (un)" }, { value: "kg", label: "Quilo (kg)" }, { value: "g", label: "Grama (g)" },

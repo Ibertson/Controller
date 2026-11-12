@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { catalogTotals, lowStock, marginPct, parseQty, searchProducts } from "./products";
+import { PRODUCT_CATEGORIES, catalogTotals, categoryOptions, lowStock, marginPct, parseQty, searchProducts } from "./products";
 import type { Product } from "./types";
 
 const p = (o: Partial<Product>): Product => ({
@@ -26,5 +26,13 @@ describe("produtos", () => {
   it("busca sem acento", () => {
     expect(searchProducts([p({ name: "Pão de queijo" }), p({ id: "2", name: "Café", sku: "X1" })], "pao")).toHaveLength(1);
     expect(searchProducts([p({ name: "Pão" }), p({ id: "2", name: "Café", sku: "X1" })], "x1")[0].name).toBe("Café");
+  });
+});
+
+describe("categoryOptions", () => {
+  it("lista as fixas e acrescenta as próprias e a atual sem repetir", () => {
+    const o = categoryOptions(["Uniformes", "vendas"], "Bebidas");
+    expect(o.slice(0, PRODUCT_CATEGORIES.length).map((c) => c.name)).toEqual(PRODUCT_CATEGORIES.map((c) => c.name));
+    expect(o.slice(PRODUCT_CATEGORIES.length).map((c) => c.name)).toEqual(["Uniformes", "Bebidas"]);
   });
 });

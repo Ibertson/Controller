@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowLeft, Calculator, ImagePlus, Package, Plus, Save, Sparkles, Tags, X } from "lucide-react";
+import { ArrowLeft, Calculator, ImagePlus, Package, Save, X } from "lucide-react";
 import { useShell } from "@/components/AppShell";
 import { useSpace } from "@/components/business";
 import { useProducts } from "@/components/products";
@@ -11,9 +11,10 @@ import { Button, Card, Field, Input, Skeleton, inputClass } from "@/components/u
 import { repo } from "@/lib/data";
 import { resizeImage } from "@/lib/image";
 import { formatBRL, parseBRL } from "@/lib/money";
-import { DEFAULT_PRODUCT_CATEGORIES, UNITS, formatQty, marginPct, parseQty } from "@/lib/products";
+import { UNITS, categoryOptions, formatQty, marginPct, parseQty } from "@/lib/products";
 import type { Product } from "@/lib/types";
 
+const NEW_CAT = "__nova__";
 const centsText = (c: number) => (c ? formatBRL(c).replace(/^R\$\s*/, "") : "");
 
 export default function ProdutoPage() {
@@ -72,8 +73,9 @@ function ProductForm({ initial }: { initial?: Product }) {
   async function addCategory() {
     const name = (newCat ?? "").trim().replace(/\s+/g, " ");
     if (!name) { setNewCat(null); return; }
-    if (!cats.some((c) => c.toLowerCase() === name.toLowerCase())) await saveCategories([...cats, name]);
-    setF((x) => ({ ...x, category: cats.find((c) => c.toLowerCase() === name.toLowerCase()) ?? name }));
+    const existing = categoryOptions(cats).find((c) => c.name.toLowerCase() === name.toLowerCase())?.name;
+    if (!existing) await saveCategories([...cats, name]);
+    setF((x) => ({ ...x, category: existing ?? name }));
     setErrors((e) => ({ ...e, category: "" }));
     setNewCat(null);
   }
@@ -120,37 +122,23 @@ function ProductForm({ initial }: { initial?: Product }) {
         </Field>
 
         <div className="flex flex-col gap-1.5">
-          <span id="pr-cat-label" className="text-sm font-medium">Categoria *</span>
-          {cats.length === 0 && newCat == null ? (
-            <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border bg-surface px-4 py-6 text-center sm:max-w-md">
-              <Tags aria-hidden className="size-6 text-text-muted" />
-              <p className="text-sm font-medium">Você ainda não tem categorias cadastradas</p>
-              <p className="text-xs text-text-muted">Crie categorias para organizar seus produtos</p>
-              <div className="mt-1 flex flex-wrap justify-center gap-2">
-                <Button type="button" size="sm" variant="secondary" onClick={() => setNewCat("")}><Plus aria-hidden className="size-4" />Criar Categorias</Button>
-                <Button type="button" size="sm" variant="ghost" onClick={() => void saveCategories(DEFAULT_PRODUCT_CATEGORIES)}><Sparkles aria-hidden className="size-4" />Usar padrão</Button>
-              </div>
-            </div>
+          <label id="pr-cat-label" htmlFor="pr-cat" className="text-xs font-semibold text-text-muted">Categoria *</label>
+          {newCat == null ? (
+            <select id="pr-cat" aria-labelledby="pr-cat-label" value={f.category} aria-invalid={!!errors.category || undefined}
+              onChange={(e) => { if (e.target.value === NEW_CAT) setNewCat(""); else set("category")(e.target.value); }}
+              className={`${inputClass} ${f.category ? "" : "text-text-muted"}`}>
+              <option value="" disabled>Selecione a categoria</option>
+              {categoryOptions(cats, f.category).map((c) => <option key={c.name} value={c.name} className="text-text">{c.emoji}  {c.name}</option>)}
+              <option value={NEW_CAT} className="text-text">＋  Nova categoria…</option>
+            </select>
           ) : (
-            <div role="radiogroup" aria-labelledby="pr-cat-label" className="flex flex-wrap gap-2">
-              {cats.map((c) => (
-                <button key={c} type="button" role="radio" aria-checked={f.category === c} onClick={() => { set("category")(c); setErrors((e) => ({ ...e, category: "" })); }}
-                  className="h-9 rounded-pill border border-border px-3 text-sm hover:bg-surface aria-checked:border-accent aria-checked:bg-accent-soft aria-checked:font-semibold aria-checked:text-accent">{c}</button>
-              ))}
-              {newCat == null ? (
-                <button type="button" onClick={() => setNewCat("")} className="inline-flex h-9 items-center gap-1 rounded-pill border border-dashed border-border px-3 text-sm text-text-muted hover:text-text">
-                  <Plus aria-hidden className="size-4" />Nova categoria
-                </button>
-              ) : (
-                <span className="inline-flex items-center gap-1">
-                  <input aria-label="Nome da nova categoria" autoFocus value={newCat} maxLength={60} onChange={(e) => setNewCat(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void addCategory(); } if (e.key === "Escape") setNewCat(null); }}
-                    placeholder="Nome da categoria" className={`${inputClass} !h-9 w-48`} />
-                  <Button type="button" size="sm" onClick={() => void addCategory()}>Adicionar</Button>
-                  <button type="button" aria-label="Cancelar" onClick={() => setNewCat(null)} className="rounded-sm p-1.5 text-text-muted hover:bg-surface"><X className="size-4" /></button>
-                </span>
-              )}
-            </div>
+            <span className="flex flex-wrap items-center gap-1">
+              <input aria-label="Nome da nova categoria" autoFocus value={newCat} maxLength={60} onChange={(e) => setNewCat(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void addCategory(); } if (e.key === "Escape") setNewCat(null); }}
+                placeholder="Nome da categoria" className={`${inputClass} min-w-0 flex-1`} />
+              <Button type="button" onClick={() => void addCategory()}>Adicionar</Button>
+              <button type="button" aria-label="Cancelar" onClick={() => setNewCat(null)} className="rounded-sm p-2 text-text-muted hover:bg-surface"><X className="size-4" /></button>
+            </span>
           )}
           {errors.category && <p className="text-xs text-danger">{errors.category}</p>}
         </div>
