@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cashFlow, dre, dreGroup, formatCnpj, isValidCnpj, overdue, priceFor } from "./business";
+import { cashFlow, companyTypeInfo, dre, dreGroup, formatCnae, formatCnpj, fromBrasilApi, isValidCnpj, overdue, parseCents, priceFor } from "./business";
 import { emptySnapshot } from "./data/seed";
 import { buildTransactions } from "./transactions";
 import type { Snapshot } from "./types";
@@ -72,5 +72,26 @@ describe("precificação", () => {
     expect(r.priceCents).toBe(1667);
     expect(r.profitCents).toBe(1667 - 1000 - 167 - 100 - 67);
     expect(priceFor({ costCents: 1000, fixedPct: 50, taxPct: 0, feePct: 0, commissionPct: 0, marginPct: 50 })).toBeNull();
+  });
+});
+
+describe("cadastro da empresa", () => {
+  it("tipos novos e antigos têm nome e dica", () => {
+    expect(companyTypeInfo("mei")?.hint).toBe("Limite anual: R$ 81.000,00");
+    expect(companyTypeInfo("epp_simples")?.hint).toBe("Limite anual: até R$ 4.800.000,00");
+    expect(companyTypeInfo("presumido")?.hint).toBe("Regime tributário: Lucro Presumido");
+    expect(companyTypeInfo("ltda")?.short).toBe("LTDA");
+    expect(companyTypeInfo("me_simples")?.short).toBe("ME - Simples Nacional");
+  });
+  it("valor do DAS e CNAE", () => {
+    expect(parseCents("75,60")).toBe(7560);
+    expect(parseCents("R$ 1.234,5")).toBe(123450);
+    expect(parseCents("")).toBeNull();
+    expect(formatCnae("6201501")).toBe("6201-5/01");
+    expect(formatCnae("62015")).toBe("6201-5");
+  });
+  it("lê a resposta da BrasilAPI", () => {
+    expect(fromBrasilApi({ razao_social: "EMPRESA X LTDA", nome_fantasia: "", email: "Contato@X.com", municipio: "SAO PAULO", uf: "sp", cnae_fiscal: 6201501, data_inicio_atividade: "2020-03-01" }))
+      .toEqual({ legalName: "EMPRESA X LTDA", tradeName: undefined, email: "contato@x.com", city: "Sao Paulo", uf: "SP", cnae: "6201501", openedOn: "2020-03-01" });
   });
 });

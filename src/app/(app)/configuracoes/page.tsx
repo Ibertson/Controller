@@ -152,12 +152,14 @@ function ProfileView({ name, profile, snap }: { name: string; profile: Profile; 
 
       <PersonalInfo name={name} profile={profile} nameRef={nameRef} />
       <WhatsappSection name={name} profile={profile} snap={snap} />
-      {online ? <PasswordSection hasPassword={profile.hasPassword} /> : (
-        <Card>
-          <SectionTitle icon={KeyRound}>Segurança</SectionTitle>
-          <p className="text-sm text-text-muted">Neste modo os dados ficam só neste aparelho e não há senha. Com a conta online, você pode criar uma senha aqui.</p>
-        </Card>
-      )}
+      <div id="seguranca" className="scroll-mt-20">
+        {online ? <PasswordSection hasPassword={profile.hasPassword} /> : (
+          <Card>
+            <SectionTitle icon={KeyRound}>Segurança</SectionTitle>
+            <p className="text-sm text-text-muted">Neste modo os dados ficam só neste aparelho e não há senha. Com a conta online, você pode criar uma senha aqui.</p>
+          </Card>
+        )}
+      </div>
       <VersionSection />
 
       <DangerZone onLeave={() => router.replace("/entrar")} />

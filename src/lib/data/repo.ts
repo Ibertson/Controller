@@ -119,7 +119,7 @@ export function freshSnapshot(workspace: Snapshot["workspace"], newId: () => str
 /** Dados da empresa de um espaço empresarial; null no pessoal. */
 export function companyOf(w: Workspace): Company | null {
   return w.kind === "business"
-    ? { name: w.name, cnpj: w.cnpj ?? null, activity: w.activity ?? "", companyType: w.companyType ?? "outro" } : null;
+    ? { name: w.name, cnpj: w.cnpj ?? null, activity: w.activity ?? "", companyType: w.companyType ?? "outro", details: w.details ?? {} } : null;
 }
 
 /** Lixeira guarda por 30 dias; ids que já passaram disso. */

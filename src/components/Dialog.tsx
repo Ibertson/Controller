@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 /** Janela simples: Esc fecha, Tab fica dentro. */
@@ -22,7 +23,8 @@ export function Dialog({ title, onClose, children, wide }: { title: ReactNode; o
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
-  return (
+  // No body: dentro de um cabeçalho fixo a janela ficaria presa embaixo do botão +.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center lg:items-center">
       <button aria-label="Fechar" tabIndex={-1} className="absolute inset-0 bg-text/40" onClick={onClose} />
       <div ref={ref} role="dialog" aria-modal="true" aria-labelledby="dlg-title"
@@ -33,6 +35,7 @@ export function Dialog({ title, onClose, children, wide }: { title: ReactNode; o
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
