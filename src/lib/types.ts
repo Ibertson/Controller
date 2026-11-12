@@ -25,10 +25,24 @@ export interface CompanyDetails {
   /** Link da prefeitura para emitir nota fiscal. */
   nfseUrl?: string;
   publicCatalog?: boolean;
+  /** Categorias dos produtos (cadastro de Produtos). */
+  productCategories?: string[];
 }
 /** Dados da empresa (espaço empresarial). */
 export interface Company { name: string; cnpj: string | null; activity: string; companyType: CompanyType; details?: CompanyDetails }
 /** Espaço de dados: o pessoal e, se cadastrada, o da empresa. kind ausente = pessoal (dados antigos). */
+/** Produto do catálogo da empresa. Preços em centavos. */
+export interface Product {
+  id: ID; name: string; category: string; description: string;
+  /** Código interno ou de barras. */
+  sku: string; unit: string;
+  costCents: number; priceCents: number;
+  stock: number; minStock: number;
+  /** Foto já reduzida no navegador (data URL). */
+  photo: string | null;
+  active: boolean;
+  createdAt: string;
+}
 export interface Workspace {
   id: ID; name: string; currency: "BRL"; kind?: WorkspaceKind;
   cnpj?: string | null; activity?: string; companyType?: CompanyType | null; details?: CompanyDetails;

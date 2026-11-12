@@ -1,4 +1,4 @@
-import type { Account, Card, Category, Company, Workspace, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Profile, Recurring, Snapshot, Transaction } from "../types";
+import type { Account, Card, Category, Company, Workspace, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Profile, Recurring, Snapshot, Transaction } from "../types";
 import type { BioPage } from "../bio";
 import type { SyncStatus } from "./outbox";
 import { emptySnapshot } from "./seed";
@@ -45,6 +45,12 @@ export interface Repo {
   createBusiness(c: Company): Promise<void>;
   /** Altera os dados da empresa do espaço atual. */
   updateCompany(c: Company): Promise<void>;
+
+  /** Produtos do espaço atual (mais novos primeiro). */
+  listProducts(): Promise<Product[]>;
+  /** Cria ou altera um produto. */
+  saveProduct(p: Product): Promise<void>;
+  deleteProduct(id: string): Promise<void>;
 
   /** Link Bio do espaço atual; null = ainda não criado. */
   loadBio(): Promise<BioPage | null>;
