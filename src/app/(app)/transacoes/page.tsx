@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   ArrowDown, ArrowUp, CreditCard, Download, Eye, Filter, Landmark, ListOrdered, Pencil, Plus, Trash2, TrendingUp, Upload, Eraser, Users, Wallet,
 } from "lucide-react";
@@ -23,11 +24,22 @@ import { setSelfHidden, useSelfHidden } from "@/components/people";
 const kindLabel: Record<AccountKind, string> = { checking: "Conta corrente", savings: "Poupança", wallet: "Dinheiro", other: "Outra" };
 
 
-export default function Transacoes() {
+export default function TransacoesPage() {
+  return <Suspense fallback={null}><FromUrl /></Suspense>;
+}
+
+/** ?tipo=receitas abre em Receitas (Vendas no Empresarial); ?tipo=despesas em Despesas. */
+function FromUrl() {
+  const tipo = useSearchParams().get("tipo");
+  const side = tipo === "receitas" ? "income" : "expense";
+  return <Transacoes key={side} initialSide={side} />;
+}
+
+function Transacoes({ initialSide }: { initialSide: "expense" | "income" }) {
   const snap = useSnapshot();
   const session = useSession();
   const { month, setMonth, openNew, toast } = useShell();
-  const [side, setSide] = useState<"expense" | "income">("expense");
+  const [side, setSide] = useState<"expense" | "income">(initialSide);
   const [tab, setTab] = useState<"all" | "card">("all");
   const [range, setRange] = useState<6 | 12>(6);
   const [showFilters, setShowFilters] = useState(false);

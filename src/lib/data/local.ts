@@ -1,7 +1,7 @@
 "use client";
 
 import { buildTransactions } from "../transactions";
-import type { GoalContribution, Profile, Snapshot } from "../types";
+import type { Company, GoalContribution, Profile, Snapshot, WorkspaceKind } from "../types";
 import { today } from "../dates";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import type { SyncStatus } from "./outbox";
@@ -12,7 +12,16 @@ const SYNCED: SyncStatus = { online: true, pending: 0, syncing: false, error: nu
 const newId = () => crypto.randomUUID();
 
 type LocalProfile = Omit<Profile, "email" | "hasPassword">;
-interface Stored { session: { name: string } | null; data: Snapshot | null; keys: string[]; profile?: LocalProfile }
+/** spaces = espaços guardados que não estão abertos agora (pessoal ou empresa). */
+interface Stored { session: { name: string } | null; data: Snapshot | null; keys: string[]; profile?: LocalProfile; spaces?: Record<string, Snapshot> }
+
+const kindOf = (s: Snapshot) => s.workspace.kind ?? "personal";
+/** Lista de espaços, sempre guardada junto do espaço aberto. */
+function withList(open: Snapshot, others: Snapshot[]): Snapshot {
+  const workspaces = [open, ...others].map((s) => ({ id: s.workspace.id, kind: kindOf(s), name: s.workspace.name }))
+    .sort((a, b) => (a.kind === "personal" ? -1 : 1) - (b.kind === "personal" ? -1 : 1));
+  return { ...open, workspaces };
+}
 
 /** Guarda tudo no navegador. Serve para usar já, sem servidor; dados ficam só neste aparelho. */
 export class LocalRepo implements Repo {
@@ -88,6 +97,30 @@ export class LocalRepo implements Repo {
   }
   async changePassword(): Promise<void> { throw new Error("Neste modo não há senha: os dados ficam só neste aparelho."); }
   async deleteAccount() { this.commit({ session: null, data: null, keys: [] }); }
+
+  async switchWorkspace(kind: WorkspaceKind) {
+    const cur = this.data();
+    if (kindOf(cur) === kind) return;
+    const spaces = { ...(this.state.spaces ?? {}) };
+    const target = Object.values(spaces).find((s) => kindOf(s) === kind);
+    if (!target) throw new Error(kind === "business" ? "Cadastre a empresa primeiro." : "Espaço pessoal não encontrado.");
+    delete spaces[target.workspace.id];
+    spaces[cur.workspace.id] = cur;
+    this.commit({ ...this.state, spaces, data: withList(target, Object.values(spaces)) });
+  }
+  async createBusiness(c: Company) {
+    const cur = this.data();
+    if ([cur, ...Object.values(this.state.spaces ?? {})].some((s) => kindOf(s) === "business")) throw new Error("A empresa já está cadastrada.");
+    const biz = emptySnapshot(newId, c);
+    const spaces = { ...(this.state.spaces ?? {}), [cur.workspace.id]: cur };
+    this.commit({ ...this.state, spaces, data: withList(biz, Object.values(spaces)) });
+  }
+  async updateCompany(c: Company) {
+    this.update((d) => {
+      const workspace = { ...d.workspace, name: c.name, cnpj: c.cnpj, activity: c.activity, companyType: c.companyType };
+      return { ...d, workspace, workspaces: (d.workspaces ?? []).map((w) => (w.id === workspace.id ? { ...w, name: c.name } : w)) };
+    });
+  }
 
   async createTransaction(input: Parameters<Repo["createTransaction"]>[0]) {
     const d = this.data();

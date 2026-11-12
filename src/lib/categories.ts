@@ -1,5 +1,5 @@
 // Categorias padrão do Sobra e o ajuste das contas que já existem (só acrescenta; não apaga nada).
-import type { Category } from "./types";
+import type { Category, WorkspaceKind } from "./types";
 
 type Def = [name: string, icon: string];
 
@@ -14,6 +14,21 @@ export const DEFAULT_EXPENSE: Def[] = [
 ];
 export const DEFAULT_INCOME: Def[] = [["Salário", "briefcase"], ["Freelance/Extra", "sparkles"], ["Investimentos", "trending-up"]];
 
+/** Categorias padrão de uma empresa. */
+export const BUSINESS_EXPENSE: Def[] = [
+  ["Fornecedores/Mercadorias", "truck"], ["Matéria-prima", "hammer"], ["Aluguel", "key-round"], ["Salários", "users"],
+  ["Pró-labore", "briefcase"], ["Impostos", "percent"], ["Contabilidade", "receipt"], ["Marketing", "share-2"],
+  ["Conta de Luz", "lightbulb"], ["Água", "droplet"], ["Internet/Telefone", "wifi"], ["Software/Assinaturas", "tv"],
+  ["Taxas bancárias/Maquininha", "landmark"], ["Frete/Transporte", "bus"], ["Manutenção", "wrench"],
+  ["Material de escritório", "book-open"], ["Empréstimos/Financiamentos", "hand-coins"], ["Outros", "ellipsis"],
+];
+export const BUSINESS_INCOME: Def[] = [
+  ["Venda de produtos", "shopping-bag"], ["Prestação de serviços", "briefcase-business"], ["Receitas financeiras", "trending-up"], ["Outras receitas", "coins"],
+];
+
+export const defaultsFor = (kind: WorkspaceKind) =>
+  kind === "business" ? { expense: BUSINESS_EXPENSE, income: BUSINESS_INCOME } : { expense: DEFAULT_EXPENSE, income: DEFAULT_INCOME };
+
 /** Nomes antigos do Sobra que viram os novos, mantendo os lançamentos ligados. */
 const RENAMES: Record<string, string> = {
   "expense:restaurantes": "Restaurante", "expense:contas": "Contas e Serviços", "expense:casa": "Moradia",
@@ -25,10 +40,10 @@ export const normName = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, ""
 export type CategoryChange = Omit<Category, "workspaceId" | "id"> & { id?: string };
 
 /** O que falta para a conta ter todas as categorias padrão: renomeia as antigas equivalentes e cria as que faltam. */
-export function defaultCategoryChanges(existing: Category[]): CategoryChange[] {
+export function defaultCategoryChanges(existing: Category[], kind: WorkspaceKind = "personal"): CategoryChange[] {
   const have = new Set(existing.map((c) => `${c.kind}:${normName(c.name)}`));
   const out: CategoryChange[] = [];
-  for (const c of existing) {
+  for (const c of kind === "business" ? [] : existing) {
     const to = RENAMES[`${c.kind}:${normName(c.name)}`];
     if (to && !have.has(`${c.kind}:${normName(to)}`)) {
       out.push({ ...c, name: to });
@@ -40,8 +55,9 @@ export function defaultCategoryChanges(existing: Category[]): CategoryChange[] {
     have.add(`${kind}:${normName(name)}`);
     out.push({ name, icon, kind, monthlyLimitCents: null, archived: false });
   };
-  DEFAULT_EXPENSE.forEach(add("expense"));
-  DEFAULT_INCOME.forEach(add("income"));
+  const d = defaultsFor(kind);
+  d.expense.forEach(add("expense"));
+  d.income.forEach(add("income"));
   return out;
 }
 

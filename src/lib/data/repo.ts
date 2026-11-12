@@ -1,4 +1,4 @@
-import type { Account, Card, Category, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Profile, Recurring, Snapshot, Transaction } from "../types";
+import type { Account, Card, Category, Company, Workspace, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Profile, Recurring, Snapshot, Transaction } from "../types";
 import type { SyncStatus } from "./outbox";
 import { emptySnapshot } from "./seed";
 
@@ -37,6 +37,13 @@ export interface Repo {
 
   snapshot(): Snapshot | null;
   subscribe(listener: () => void): () => void;
+
+  /** Troca entre o espaço pessoal e o da empresa (cada um com seus próprios dados). */
+  switchWorkspace(kind: WorkspaceKind): Promise<void>;
+  /** Cadastra a empresa: cria o espaço empresarial (conta principal e categorias) e entra nele. */
+  createBusiness(c: Company): Promise<void>;
+  /** Altera os dados da empresa do espaço atual. */
+  updateCompany(c: Company): Promise<void>;
 
   createTransaction(input: NewTransactionInput): Promise<Transaction[]>;
   /** Manda para a lixeira (esta parcela, as próximas ou todas). */
@@ -104,9 +111,15 @@ export function dropForever(d: Snapshot, ids: string[]): Snapshot {
 
 /** Painel recomeçado no mesmo espaço: só a conta principal e as categorias padrão. */
 export function freshSnapshot(workspace: Snapshot["workspace"], newId: () => string): Snapshot {
-  const seed = emptySnapshot(newId);
+  const seed = emptySnapshot(newId, companyOf(workspace) ?? undefined);
   const own = <T extends { workspaceId: string }>(list: T[]) => list.map((x) => ({ ...x, workspaceId: workspace.id }));
   return { ...seed, workspace, accounts: own(seed.accounts), categories: own(seed.categories), trash: [] };
+}
+
+/** Dados da empresa de um espaço empresarial; null no pessoal. */
+export function companyOf(w: Workspace): Company | null {
+  return w.kind === "business"
+    ? { name: w.name, cnpj: w.cnpj ?? null, activity: w.activity ?? "", companyType: w.companyType ?? "outro" } : null;
 }
 
 /** Lixeira guarda por 30 dias; ids que já passaram disso. */

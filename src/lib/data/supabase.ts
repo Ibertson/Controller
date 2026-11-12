@@ -2,7 +2,7 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildTransactions } from "../transactions";
-import type { Account, Card, Category, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
+import type { Account, Card, Category, Company, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import { Outbox, browserStore, isNetworkFailure, type Op, type RunResult, type SyncStatus } from "./outbox";
 import { emptySnapshot } from "./seed";
@@ -327,8 +327,9 @@ export class SupabaseRepo implements Repo {
     }
     if (!wsId) wsId = await this.createPersonalWorkspace(uid);
 
-    const [ws, accounts, cards, categories, people, transactions, recurring, goals, contributions, investments, investmentGoals, debts, reminders] = await Promise.all([
-      this.db.from("workspaces").select("id,name,currency").eq("id", wsId).single(),
+    const [ws, spaces, accounts, cards, categories, people, transactions, recurring, goals, contributions, investments, investmentGoals, debts, reminders] = await Promise.all([
+      this.db.from("workspaces").select("id,name,currency,kind,cnpj,activity,company_type").eq("id", wsId).single(),
+      this.db.from("workspaces").select("id,kind,name").eq("owner_id", uid).order("created_at"),
       this.all("accounts", wsId), this.all("cards", wsId), this.all("categories", wsId),
       this.all("people", wsId), this.all("transactions", wsId), this.all("recurring", wsId),
       this.all("goals", wsId), this.all("goal_contributions", wsId),
@@ -337,7 +338,12 @@ export class SupabaseRepo implements Repo {
     const w = must(ws);
     await this.loadProfile();
     this.data = {
-      workspace: { id: w.id, name: w.name, currency: "BRL" },
+      workspace: {
+        id: w.id, name: w.name, currency: "BRL", kind: w.kind ?? "personal",
+        cnpj: w.cnpj ?? null, activity: w.activity ?? "", companyType: w.company_type ?? null,
+      },
+      workspaces: (must(spaces) as { id: string; kind: WorkspaceKind; name: string }[])
+        .sort((a, b) => (a.kind === "personal" ? -1 : 1) - (b.kind === "personal" ? -1 : 1)),
       accounts: accounts.map(toAccount),
       cards: cards.map(toCard),
       categories: categories.map(toCategory),
@@ -380,6 +386,44 @@ export class SupabaseRepo implements Repo {
   }
 
   /** Primeiro acesso: cria o espaço pessoal com uma conta e as categorias iniciais. */
+  async switchWorkspace(kind: WorkspaceKind) {
+    if (!this.user || !this.data) throw new Error("não autenticado");
+    if ((this.data.workspace.kind ?? "personal") === kind) return;
+    if (!online()) throw new Error(OFFLINE_MSG);
+    const target = (this.data.workspaces ?? []).find((w) => w.kind === kind);
+    if (!target) throw new Error(kind === "business" ? "Cadastre a empresa primeiro." : "Espaço pessoal não encontrado.");
+    await this.outbox?.flush(); // o que está pendente vai para o espaço certo antes de trocar
+    must(await this.db.from("user_settings").upsert({ user_id: this.user.id, default_workspace_id: target.id }));
+    await this.load();
+  }
+
+  async createBusiness(c: Company) {
+    if (!this.user || !this.data) throw new Error("não autenticado");
+    if (!online()) throw new Error(OFFLINE_MSG);
+    if ((this.data.workspaces ?? []).some((w) => w.kind === "business")) throw new Error("A empresa já está cadastrada.");
+    const seed = emptySnapshot(newId, c);
+    const wsId = seed.workspace.id;
+    must(await this.db.from("workspaces").insert({
+      id: wsId, owner_id: this.user.id, kind: "business", name: c.name, cnpj: c.cnpj, activity: c.activity, company_type: c.companyType,
+    }));
+    must(await this.db.from("accounts").insert(seed.accounts.map(fromAccount)));
+    must(await this.db.from("categories").insert(seed.categories.map(fromCategory)));
+    await this.outbox?.flush();
+    must(await this.db.from("user_settings").upsert({ user_id: this.user.id, default_workspace_id: wsId }));
+    await this.load();
+  }
+
+  async updateCompany(c: Company) {
+    if (!this.data) throw new Error("não autenticado");
+    if (!online()) throw new Error(OFFLINE_MSG);
+    const id = this.data.workspace.id;
+    must(await this.db.from("workspaces").update({ name: c.name, cnpj: c.cnpj, activity: c.activity, company_type: c.companyType }).eq("id", id));
+    this.set((d) => ({
+      ...d, workspace: { ...d.workspace, name: c.name, cnpj: c.cnpj, activity: c.activity, companyType: c.companyType },
+      workspaces: (d.workspaces ?? []).map((w) => (w.id === id ? { ...w, name: c.name } : w)),
+    }));
+  }
+
   private async createPersonalWorkspace(uid: string): Promise<string> {
     const seed = emptySnapshot(newId);
     const wsId = seed.workspace.id;
