@@ -1,4 +1,5 @@
 import type { Account, Card, Category, Company, Workspace, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Profile, Recurring, Snapshot, Transaction } from "../types";
+import type { BioPage } from "../bio";
 import type { SyncStatus } from "./outbox";
 import { emptySnapshot } from "./seed";
 
@@ -44,6 +45,13 @@ export interface Repo {
   createBusiness(c: Company): Promise<void>;
   /** Altera os dados da empresa do espaço atual. */
   updateCompany(c: Company): Promise<void>;
+
+  /** Link Bio do espaço atual; null = ainda não criado. */
+  loadBio(): Promise<BioPage | null>;
+  /** Grava o Link Bio (endereço único entre todos). */
+  saveBio(p: BioPage): Promise<void>;
+  /** Página pública pelo endereço; null = não existe ou está desativada. Não precisa estar conectado. */
+  publicBio(slug: string): Promise<BioPage | null>;
 
   createTransaction(input: NewTransactionInput): Promise<Transaction[]>;
   /** Manda para a lixeira (esta parcela, as próximas ou todas). */
