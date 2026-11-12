@@ -6,6 +6,7 @@ import type { Account, Card, Category, Company, WorkspaceKind, Debt, Reminder, G
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import { Outbox, browserStore, isNetworkFailure, type Op, type RunResult, type SyncStatus } from "./outbox";
 import { emptySnapshot } from "./seed";
+import type { BioPage } from "../bio";
 
 // Banco: supabase/migrations. As colunas são snake_case; aqui viram camelCase.
 type Row = Record<string, unknown>;
@@ -411,6 +412,27 @@ export class SupabaseRepo implements Repo {
     await this.outbox?.flush();
     must(await this.db.from("user_settings").upsert({ user_id: this.user.id, default_workspace_id: wsId }));
     await this.load();
+  }
+
+  async loadBio() {
+    if (!this.data) throw new Error("não autenticado");
+    const r = must(await this.db.from("bio_pages").select("slug,published,data").eq("workspace_id", this.data.workspace.id).maybeSingle()) as Row | null;
+    return r ? ({ slug: r.slug, published: r.published, data: r.data } as BioPage) : null;
+  }
+
+  async saveBio(p: BioPage) {
+    if (!this.user || !this.data) throw new Error("não autenticado");
+    if (!online()) throw new Error(OFFLINE_MSG);
+    const r = await this.db.from("bio_pages").upsert({
+      workspace_id: this.data.workspace.id, owner_id: this.user.id, slug: p.slug, published: p.published, data: p.data,
+    });
+    if (r.error?.code === "23505") throw new Error("Esse endereço já está em uso. Escolha outro.");
+    must(r);
+  }
+
+  async publicBio(slug: string) {
+    const r = must(await this.db.from("bio_pages").select("slug,published,data").eq("slug", slug).eq("published", true).maybeSingle()) as Row | null;
+    return r ? ({ slug: r.slug, published: r.published, data: r.data } as BioPage) : null;
   }
 
   async updateCompany(c: Company) {

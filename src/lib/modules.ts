@@ -2,7 +2,6 @@
 export interface Module { slug: string; label: string; description: string; today?: { href: string; label: string } }
 
 export const MODULES: Module[] = [
-  { slug: "link-bio", label: "Link Bio", description: "Página de links da empresa (WhatsApp, Instagram, catálogo e endereço) para colocar na bio das redes sociais." },
   { slug: "ponto-de-venda", label: "Ponto de Venda", description: "Registrar a venda no balcão: escolher produtos ou serviços, forma de pagamento e dar baixa no estoque.",
     today: { href: "/transacoes", label: "Lance a venda como receita em Vendas" } },
   { slug: "caixa-diario", label: "Caixa Diário", description: "Abrir e fechar o caixa do dia, com entradas, saídas, sangrias e a conferência do dinheiro.",

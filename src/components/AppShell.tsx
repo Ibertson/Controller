@@ -67,7 +67,7 @@ const nav: NavGroup[] = [
 /** Menu do espaço Empresarial: o que já existe usa as telas do app com os dados da empresa. */
 const businessNav: NavGroup[] = [
   { group: "Painel", items: [{ href: "/", label: "Painel Empresarial", icon: LayoutDashboard }] },
-  { group: "Marketing", items: [{ href: mod("link-bio"), label: "Link Bio", icon: Link2 }] },
+  { group: "Marketing", items: [{ href: "/empresa/link-bio", label: "Link Bio", icon: Link2 }] },
   { group: "Operacional", items: [
     { href: mod("ponto-de-venda"), label: "Ponto de Venda", icon: Store },
     { href: mod("caixa-diario"), label: "Caixa Diário", icon: Wallet },
@@ -265,8 +265,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const month = chosenMonth ?? monthOf(today());
   // No painel o mês é escolhido nos botões de mês da própria página.
   const showMonth = ["/extrato", "/categorias", "/fechamento"].includes(path);
-  // Lembretes não lida com dinheiro, então o botão de lançamento sai do topo e do celular.
-  const showNew = !path.startsWith("/lembretes");
+  // Lembretes e Link Bio não lidam com dinheiro, então o botão de lançamento sai do topo e do celular.
+  const showNew = !path.startsWith("/lembretes") && !path.startsWith("/empresa/link-bio");
 
   return (
     <ShellCtx.Provider value={{ month, setMonth, openNew, toast }}>

@@ -4,6 +4,7 @@ import { buildTransactions } from "../transactions";
 import type { Company, GoalContribution, Profile, Snapshot, WorkspaceKind } from "../types";
 import { today } from "../dates";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
+import type { BioPage } from "../bio";
 import type { SyncStatus } from "./outbox";
 import { emptySnapshot } from "./seed";
 
@@ -24,6 +25,8 @@ function withList(open: Snapshot, others: Snapshot[]): Snapshot {
 }
 
 /** Guarda tudo no navegador. Serve para usar já, sem servidor; dados ficam só neste aparelho. */
+const BIO_KEY = "sobra:bio";
+
 export class LocalRepo implements Repo {
   readonly mode = "local" as const;
   private state: Stored = { session: null, data: null, keys: [] };
@@ -115,6 +118,26 @@ export class LocalRepo implements Repo {
     const spaces = { ...(this.state.spaces ?? {}), [cur.workspace.id]: cur };
     this.commit({ ...this.state, spaces, data: withList(biz, Object.values(spaces)) });
   }
+  // Link Bio fica numa chave própria: a página pública lê sem precisar entrar.
+  private bios(): Record<string, BioPage> {
+    try { return JSON.parse(localStorage.getItem(BIO_KEY) ?? "{}") as Record<string, BioPage>; } catch { return {}; }
+  }
+  async loadBio() {
+    const ws = this.data().workspace.id;
+    return this.bios()[ws] ?? null;
+  }
+  async saveBio(p: BioPage) {
+    const ws = this.data().workspace.id;
+    const all = this.bios();
+    if (Object.entries(all).some(([id, b]) => id !== ws && b.slug === p.slug)) throw new Error("Esse endereço já está em uso. Escolha outro.");
+    all[ws] = p;
+    try { localStorage.setItem(BIO_KEY, JSON.stringify(all)); }
+    catch { throw new Error("Sem espaço neste aparelho. Use imagens menores."); }
+  }
+  async publicBio(slug: string) {
+    return Object.values(this.bios()).find((b) => b.slug === slug && b.published) ?? null;
+  }
+
   async updateCompany(c: Company) {
     this.update((d) => {
       const workspace = { ...d.workspace, name: c.name, cnpj: c.cnpj, activity: c.activity, companyType: c.companyType, details: c.details ?? {} };
