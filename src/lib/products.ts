@@ -12,8 +12,8 @@ export const PRODUCT_CATEGORIES: { name: string; emoji: string }[] = [
 ];
 
 /** Opções do seletor: as fixas, depois as criadas pela empresa e a do produto (se for antiga), sem repetir. */
-export function categoryOptions(custom: string[], current = ""): { name: string; emoji: string }[] {
-  const out = [...PRODUCT_CATEGORIES];
+export function categoryOptions(custom: string[], current = "", base = PRODUCT_CATEGORIES): { name: string; emoji: string }[] {
+  const out = [...base];
   const seen = new Set(out.map((c) => c.name.toLowerCase()));
   for (const n of [...custom, current]) {
     const t = n.trim();

@@ -1,7 +1,7 @@
 "use client";
 
 import { buildTransactions } from "../transactions";
-import type { Company, GoalContribution, Product, Profile, Snapshot, WorkspaceKind } from "../types";
+import type { Company, GoalContribution, Product, Service, Profile, Snapshot, WorkspaceKind } from "../types";
 import { today } from "../dates";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import type { BioPage } from "../bio";
@@ -27,6 +27,7 @@ function withList(open: Snapshot, others: Snapshot[]): Snapshot {
 /** Guarda tudo no navegador. Serve para usar já, sem servidor; dados ficam só neste aparelho. */
 const BIO_KEY = "sobra:bio";
 const PRODUCTS_KEY = "sobra:products";
+const SERVICES_KEY = "sobra:services";
 
 export class LocalRepo implements Repo {
   readonly mode = "local" as const;
@@ -153,6 +154,25 @@ export class LocalRepo implements Repo {
   }
   async deleteProduct(id: string) {
     this.putProducts((await this.listProducts()).filter((x) => x.id !== id));
+  }
+  private allServices(): Record<string, Service[]> {
+    try { return JSON.parse(localStorage.getItem(SERVICES_KEY) ?? "{}") as Record<string, Service[]>; } catch { return {}; }
+  }
+  private putServices(list: Service[]) {
+    const all = this.allServices();
+    all[this.data().workspace.id] = list;
+    try { localStorage.setItem(SERVICES_KEY, JSON.stringify(all)); }
+    catch { throw new Error("Sem espaço neste aparelho."); }
+  }
+  async listServices() {
+    return [...(this.allServices()[this.data().workspace.id] ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+  async saveService(s: Service) {
+    const list = await this.listServices();
+    this.putServices(list.some((x) => x.id === s.id) ? list.map((x) => (x.id === s.id ? s : x)) : [s, ...list]);
+  }
+  async deleteService(id: string) {
+    this.putServices((await this.listServices()).filter((x) => x.id !== id));
   }
 
   async publicBio(slug: string) {

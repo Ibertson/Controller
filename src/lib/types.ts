@@ -27,6 +27,8 @@ export interface CompanyDetails {
   publicCatalog?: boolean;
   /** Categorias dos produtos (cadastro de Produtos). */
   productCategories?: string[];
+  /** Categorias de serviço criadas pela empresa (além das fixas). */
+  serviceCategories?: string[];
 }
 /** Dados da empresa (espaço empresarial). */
 export interface Company { name: string; cnpj: string | null; activity: string; companyType: CompanyType; details?: CompanyDetails }
@@ -40,6 +42,15 @@ export interface Product {
   stock: number; minStock: number;
   /** Foto já reduzida no navegador (data URL). */
   photo: string | null;
+  active: boolean;
+  createdAt: string;
+}
+export interface Service {
+  id: ID; name: string; category: string; description: string;
+  /** Valor padrão cobrado. */
+  priceCents: number;
+  /** Duração em horas (aceita fração: 2.5). */
+  hours: number;
   active: boolean;
   createdAt: string;
 }
