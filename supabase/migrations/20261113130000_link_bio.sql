@@ -9,7 +9,6 @@ create table if not exists bio_pages (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-drop trigger if exists bio_pages_updated_at on bio_pages;
 create trigger bio_pages_updated_at before update on bio_pages for each row execute function set_updated_at();
 
 alter table bio_pages enable row level security;
