@@ -117,7 +117,7 @@ export class LocalRepo implements Repo {
   }
   async updateCompany(c: Company) {
     this.update((d) => {
-      const workspace = { ...d.workspace, name: c.name, cnpj: c.cnpj, activity: c.activity, companyType: c.companyType };
+      const workspace = { ...d.workspace, name: c.name, cnpj: c.cnpj, activity: c.activity, companyType: c.companyType, details: c.details ?? {} };
       return { ...d, workspace, workspaces: (d.workspaces ?? []).map((w) => (w.id === workspace.id ? { ...w, name: c.name } : w)) };
     });
   }

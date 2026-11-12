@@ -3,16 +3,43 @@ import { normName } from "./categories";
 import { budgetMonth } from "./summary";
 import type { Category, CompanyType, Snapshot, Transaction } from "./types";
 
-export const COMPANY_TYPES: { value: CompanyType; label: string }[] = [
-  { value: "mei", label: "MEI (Microempreendedor Individual)" },
-  { value: "me", label: "ME (Microempresa)" },
-  { value: "epp", label: "EPP (Empresa de Pequeno Porte)" },
-  { value: "ltda", label: "LTDA (Sociedade Limitada)" },
-  { value: "slu", label: "SLU (Sociedade Limitada Unipessoal)" },
-  { value: "sa", label: "S/A (Sociedade Anônima)" },
-  { value: "autonomo", label: "Autônomo / Profissional liberal" },
-  { value: "outro", label: "Outro" },
+export interface CompanyTypeInfo { value: CompanyType; label: string; short: string; hint: string }
+
+/** Tipos que aparecem no cadastro, com a dica mostrada embaixo do campo. */
+export const COMPANY_TYPES: CompanyTypeInfo[] = [
+  { value: "mei", label: "MEI (Microempreendedor Individual)", short: "MEI", hint: "Limite anual: R$ 81.000,00" },
+  { value: "me", label: "ME (Microempresa)", short: "ME", hint: "Limite anual: até R$ 360.000,00" },
+  { value: "me_simples", label: "ME - Simples Nacional", short: "ME - Simples Nacional", hint: "Limite anual: até R$ 360.000,00" },
+  { value: "epp", label: "EPP (Empresa de Pequeno Porte)", short: "EPP", hint: "Limite anual: até R$ 4.800.000,00" },
+  { value: "epp_simples", label: "EPP - Simples Nacional", short: "EPP - Simples Nacional", hint: "Limite anual: até R$ 4.800.000,00" },
+  { value: "presumido", label: "Lucro Presumido", short: "Lucro Presumido", hint: "Regime tributário: Lucro Presumido" },
+  { value: "real", label: "Lucro Real", short: "Lucro Real", hint: "Regime tributário: Lucro Real" },
+  { value: "outro", label: "Outro tipo de empresa", short: "", hint: "Você poderá ajustar os limites nas configurações" },
 ];
+/** Tipos do primeiro cadastro, que não aparecem mais na lista mas continuam valendo. */
+const LEGACY_TYPES: CompanyTypeInfo[] = [
+  { value: "ltda", label: "LTDA (Sociedade Limitada)", short: "LTDA", hint: "" },
+  { value: "slu", label: "SLU (Sociedade Limitada Unipessoal)", short: "SLU", hint: "" },
+  { value: "sa", label: "S/A (Sociedade Anônima)", short: "S/A", hint: "" },
+  { value: "autonomo", label: "Autônomo / Profissional liberal", short: "Autônomo", hint: "" },
+];
+export const companyTypeInfo = (t: CompanyType | null | undefined) => [...COMPANY_TYPES, ...LEGACY_TYPES].find((x) => x.value === t);
+
+/** "R$ 75,60" ou "75,60" → 7560; null quando vazio ou inválido. */
+export function parseCents(v: string): number | null {
+  const s = v.replace(/[^\d,.-]/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".");
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
+}
+
+/* ---------------------------------- CNAE ---------------------------------- */
+
+/** 6201501 → 6201-5/01 (formata enquanto digita). */
+export function formatCnae(v: string): string {
+  const d = v.replace(/\D/g, "").slice(0, 7);
+  return d.replace(/^(\d{4})(\d)/, "$1-$2").replace(/^(\d{4}-\d)(\d)/, "$1/$2");
+}
 
 /* ---------------------------------- CNPJ ---------------------------------- */
 
@@ -36,6 +63,29 @@ export function isValidCnpj(v: string): boolean {
     return r < 2 ? 0 : 11 - r;
   };
   return check(12) === Number(d[12]) && check(13) === Number(d[13]);
+}
+
+/** Dados públicos do CNPJ (BrasilAPI, que repassa o cadastro da Receita Federal). */
+export interface CnpjData { legalName?: string; tradeName?: string; email?: string; city?: string; uf?: string; cnae?: string; openedOn?: string }
+
+/** Lê a resposta da BrasilAPI (/api/cnpj/v1/{cnpj}). */
+export function fromBrasilApi(j: Record<string, unknown>): CnpjData {
+  const str = (k: string) => (typeof j[k] === "string" && (j[k] as string).trim()) || undefined;
+  const title = (v?: string) => v?.toLowerCase().replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase());
+  const cnae = j.cnae_fiscal != null ? String(j.cnae_fiscal).replace(/\D/g, "").padStart(7, "0") : undefined;
+  const opened = str("data_inicio_atividade");
+  return {
+    legalName: str("razao_social"), tradeName: str("nome_fantasia"), email: str("email")?.toLowerCase(),
+    city: title(str("municipio")), uf: str("uf")?.toUpperCase(), cnae: cnae && /^\d{7}$/.test(cnae) ? cnae : undefined,
+    openedOn: opened && /^\d{4}-\d{2}-\d{2}$/.test(opened) ? opened : undefined,
+  };
+}
+
+export async function lookupCnpj(cnpj: string): Promise<CnpjData> {
+  const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjDigits(cnpj)}`);
+  if (res.status === 404) throw new Error("CNPJ não encontrado na Receita.");
+  if (!res.ok) throw new Error("Não foi possível consultar a Receita agora. Tente mais tarde.");
+  return fromBrasilApi(await res.json());
 }
 
 /* ------------------------------ Fluxo de caixa ------------------------------ */

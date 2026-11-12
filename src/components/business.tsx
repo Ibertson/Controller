@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { AlertTriangle, Building2, Check, CircleCheck, User } from "lucide-react";
-import { COMPANY_TYPES, cnpjDigits, formatCnpj, isValidCnpj, overdue } from "@/lib/business";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { AlertTriangle, Building2, Check, CircleCheck, Lightbulb, User } from "lucide-react";
+import { COMPANY_TYPES, cnpjDigits, companyTypeInfo, formatCnpj, isValidCnpj, overdue, parseCents } from "@/lib/business";
 import { repo, useSnapshot } from "@/lib/data";
 import { companyOf } from "@/lib/data/repo";
 import { today } from "@/lib/dates";
@@ -20,16 +20,23 @@ export function useSpace(): { kind: WorkspaceKind; hasBusiness: boolean; company
   return { kind, hasBusiness: (snap?.workspaces ?? []).some((w) => w.kind === "business"), company: snap ? companyOf(snap.workspace) : null };
 }
 
-/** Formulário da empresa: usado no cadastro e em Configurações. */
-export function CompanyForm({ initial, submitLabel, onSubmit }: { initial?: Company | null; submitLabel: string; onSubmit: (c: Company) => Promise<void> }) {
-  const [name, setName] = useState(initial?.name ?? "");
-  const [cnpj, setCnpj] = useState(initial?.cnpj ? formatCnpj(initial.cnpj) : "");
-  const [activity, setActivity] = useState(initial?.activity ?? "");
-  const [type, setType] = useState<CompanyType | "">(initial?.companyType ?? "");
+/** Dica com lâmpada embaixo de um campo. */
+export function Hint({ children, id }: { children: ReactNode; id?: string }) {
+  return <p id={id} className="flex items-start gap-1.5 text-xs text-text-muted"><Lightbulb aria-hidden className="mt-px size-3.5 shrink-0 text-warning" />{children}</p>;
+}
+
+/** Cadastro da empresa no primeiro acesso ao Empresarial. */
+export function CompanyForm({ submitLabel, onSubmit }: { submitLabel: string; onSubmit: (c: Company) => Promise<void> }) {
+  const [name, setName] = useState("");
+  const [cnpj, setCnpj] = useState("");
+  const [activity, setActivity] = useState("");
+  const [type, setType] = useState<CompanyType | "">("");
+  const [das, setDas] = useState("");
   const [cnpjMsg, setCnpjMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [fail, setFail] = useState("");
+  const info = companyTypeInfo(type || null);
 
   function validate() {
     if (!cnpjDigits(cnpj)) { setCnpjMsg({ ok: false, text: "Digite o CNPJ para validar." }); return; }
@@ -39,15 +46,20 @@ export function CompanyForm({ initial, submitLabel, onSubmit }: { initial?: Comp
   async function submit(e: FormEvent) {
     e.preventDefault();
     const err: Record<string, string> = {};
+    const dasCents = parseCents(das);
     if (!name.trim()) err.name = "Informe o nome da empresa.";
     if (cnpjDigits(cnpj) && !isValidCnpj(cnpj)) err.cnpj = "CNPJ inválido. Corrija ou deixe em branco.";
     if (!activity.trim()) err.activity = "Informe a atividade principal.";
     if (!type) err.type = "Selecione o tipo da empresa.";
+    if (type === "mei" && !dasCents) err.das = "Informe o valor do DAS mensal.";
     setErrors(err);
     if (Object.keys(err).length) return;
     setBusy(true); setFail("");
     try {
-      await onSubmit({ name: name.trim(), cnpj: cnpjDigits(cnpj) || null, activity: activity.trim(), companyType: type as CompanyType });
+      await onSubmit({
+        name: name.trim(), cnpj: cnpjDigits(cnpj) || null, activity: activity.trim(), companyType: type as CompanyType,
+        details: type === "mei" && dasCents ? { dasCents } : {},
+      });
     } catch (x) {
       setFail(x instanceof Error ? x.message : "Não foi possível salvar.");
     } finally { setBusy(false); }
@@ -58,7 +70,7 @@ export function CompanyForm({ initial, submitLabel, onSubmit }: { initial?: Comp
       <Field label="Nome da Empresa *" htmlFor="co-name" error={errors.name}>
         <Input id="co-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: João Silva Serviços de TI" maxLength={80} aria-invalid={!!errors.name || undefined} autoFocus />
       </Field>
-      <Field label="CNPJ (opcional)" htmlFor="co-cnpj" error={errors.cnpj}>
+      <Field label="CNPJ (Opcional)" htmlFor="co-cnpj" error={errors.cnpj}>
         <div className="flex gap-2">
           <Input id="co-cnpj" inputMode="numeric" value={cnpj} onChange={(e) => { setCnpj(formatCnpj(e.target.value)); setCnpjMsg(null); }}
             placeholder="00.000.000/0000-00" className="num" aria-invalid={!!errors.cnpj || undefined} />
@@ -66,19 +78,34 @@ export function CompanyForm({ initial, submitLabel, onSubmit }: { initial?: Comp
         </div>
         {cnpjMsg
           ? <p role="status" className={`flex items-center gap-1 text-xs ${cnpjMsg.ok ? "text-income" : "text-danger"}`}>{cnpjMsg.ok ? <Check aria-hidden className="size-3.5" /> : <AlertTriangle aria-hidden className="size-3.5" />}{cnpjMsg.text}</p>
-          : <p className="text-xs text-text-muted">Você pode adicionar o CNPJ depois, em Configurações.</p>}
+          : <Hint>Você pode adicionar o CNPJ depois nas configurações</Hint>}
       </Field>
       <Field label="Atividade Principal *" htmlFor="co-activity" error={errors.activity}>
         <Input id="co-activity" value={activity} onChange={(e) => setActivity(e.target.value)} placeholder="Ex.: Desenvolvimento de software" maxLength={120} aria-invalid={!!errors.activity || undefined} />
       </Field>
       <Field label="Tipo de Empresa *" htmlFor="co-type" error={errors.type}>
-        <select id="co-type" className={inputClass} value={type} onChange={(e) => setType(e.target.value as CompanyType)} aria-invalid={!!errors.type || undefined}>
+        <select id="co-type" className={inputClass} value={type} onChange={(e) => { setType(e.target.value as CompanyType); setErrors((x) => ({ ...x, type: "" })); }}
+          aria-invalid={!!errors.type || undefined} aria-describedby={info ? "co-type-hint" : undefined}>
           <option value="">Selecione o tipo da sua empresa</option>
           {COMPANY_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
+        {info?.hint && <Hint id="co-type-hint">{info.hint}</Hint>}
       </Field>
+      {type === "mei" && (
+        <div className="rounded-lg border border-accent/30 bg-accent-soft/50 p-3">
+          <Field label="Valor do DAS Mensal *" htmlFor="co-das" error={errors.das}>
+            <div className="relative">
+              <span aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-text-muted">R$</span>
+              <Input id="co-das" inputMode="decimal" value={das} onChange={(e) => setDas(e.target.value.replace(/[^\d,.]/g, ""))}
+                placeholder="75,60" className="num pl-10" aria-invalid={!!errors.das || undefined} />
+            </div>
+            <Hint>Valor médio do DAS em 2024: R$ 71,60 (Comércio) a R$ 76,60 (Misto)</Hint>
+          </Field>
+        </div>
+      )}
       {fail && <p role="alert" className="text-sm text-danger">{fail}</p>}
-      <Button type="submit" size="lg" loading={busy}>{submitLabel}</Button>
+      <Button type="submit" size="lg" loading={busy} disabled={!type}>{submitLabel}</Button>
+      {!type && <p className="-mt-2 text-center text-xs text-text-muted">Selecione o tipo da sua empresa para continuar</p>}
     </form>
   );
 }
@@ -93,8 +120,7 @@ export function CompanyModal({ onClose, onDone }: { onClose: () => void; onDone:
       </div>
     }>
       <CompanyForm submitLabel="Começar a usar" onSubmit={async (c) => { await repo.createBusiness(c); onDone(); }} />
-      <p className="mt-3 text-center text-xs text-text-muted">A empresa tem contas, categorias e lançamentos próprios, separados do pessoal.</p>
-    </Dialog>
+          </Dialog>
   );
 }
 
@@ -133,6 +159,20 @@ export function SpaceBar({ onError }: { onError: (msg: string) => void }) {
   );
 }
 
+/** Notificação do navegador com as pendências, no máximo uma vez por dia. */
+function notifyOverdue(count: number) {
+  try {
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    const key = "sobra:notified", day = today();
+    if (localStorage.getItem(key) === day) return;
+    localStorage.setItem(key, day);
+    const body = count === 1 ? "1 conta, recebimento ou lembrete em atraso." : `${count} contas, recebimentos ou lembretes em atraso.`;
+    const plain = () => { new Notification("Sobra", { body }); };
+    if (!navigator.serviceWorker) { plain(); return; }
+    void navigator.serviceWorker.getRegistration().then((r) => { if (r) void r.showNotification("Sobra", { body, tag: "atrasos" }); else plain(); });
+  } catch { /* sem notificação */ }
+}
+
 /** "Tudo em dia" quando nada está atrasado; senão mostra quantas pendências e a lista. */
 export function StatusPill() {
   const snap = useSnapshot();
@@ -146,6 +186,9 @@ export function StatusPill() {
     document.addEventListener("mousedown", close); document.addEventListener("keydown", close);
     return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", close); };
   }, [open]);
+  const pushOn = !!snap?.workspace.details?.pushAlerts;
+  const count = snap ? overdue(snap, today()).length : 0;
+  useEffect(() => { if (pushOn && count) notifyOverdue(count); }, [pushOn, count]);
   if (!snap) return null;
   const list = overdue(snap, today());
   const ok = list.length === 0;

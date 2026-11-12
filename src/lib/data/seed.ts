@@ -8,7 +8,7 @@ export function emptySnapshot(newId: () => string, company?: Company): Snapshot 
     ({ id: newId(), workspaceId, name, icon, kind, monthlyLimitCents: null, archived: false });
   return {
     workspace: company
-      ? { id: workspaceId, name: company.name, currency: "BRL", kind: "business", cnpj: company.cnpj, activity: company.activity, companyType: company.companyType }
+      ? { id: workspaceId, name: company.name, currency: "BRL", kind: "business", cnpj: company.cnpj, activity: company.activity, companyType: company.companyType, details: company.details ?? {} }
       : { id: workspaceId, name: "Pessoal", currency: "BRL", kind: "personal" },
     accounts: [{ id: newId(), workspaceId, name: "Conta principal", kind: "checking", initialBalanceCents: 0, archived: false }],
     cards: [],

@@ -328,7 +328,7 @@ export class SupabaseRepo implements Repo {
     if (!wsId) wsId = await this.createPersonalWorkspace(uid);
 
     const [ws, spaces, accounts, cards, categories, people, transactions, recurring, goals, contributions, investments, investmentGoals, debts, reminders] = await Promise.all([
-      this.db.from("workspaces").select("id,name,currency,kind,cnpj,activity,company_type").eq("id", wsId).single(),
+      this.db.from("workspaces").select("id,name,currency,kind,cnpj,activity,company_type,details").eq("id", wsId).single(),
       this.db.from("workspaces").select("id,kind,name").eq("owner_id", uid).order("created_at"),
       this.all("accounts", wsId), this.all("cards", wsId), this.all("categories", wsId),
       this.all("people", wsId), this.all("transactions", wsId), this.all("recurring", wsId),
@@ -340,7 +340,7 @@ export class SupabaseRepo implements Repo {
     this.data = {
       workspace: {
         id: w.id, name: w.name, currency: "BRL", kind: w.kind ?? "personal",
-        cnpj: w.cnpj ?? null, activity: w.activity ?? "", companyType: w.company_type ?? null,
+        cnpj: w.cnpj ?? null, activity: w.activity ?? "", companyType: w.company_type ?? null, details: w.details ?? {},
       },
       workspaces: (must(spaces) as { id: string; kind: WorkspaceKind; name: string }[])
         .sort((a, b) => (a.kind === "personal" ? -1 : 1) - (b.kind === "personal" ? -1 : 1)),
@@ -404,7 +404,7 @@ export class SupabaseRepo implements Repo {
     const seed = emptySnapshot(newId, c);
     const wsId = seed.workspace.id;
     must(await this.db.from("workspaces").insert({
-      id: wsId, owner_id: this.user.id, kind: "business", name: c.name, cnpj: c.cnpj, activity: c.activity, company_type: c.companyType,
+      id: wsId, owner_id: this.user.id, kind: "business", name: c.name, cnpj: c.cnpj, activity: c.activity, company_type: c.companyType, details: c.details ?? {},
     }));
     must(await this.db.from("accounts").insert(seed.accounts.map(fromAccount)));
     must(await this.db.from("categories").insert(seed.categories.map(fromCategory)));
@@ -417,9 +417,9 @@ export class SupabaseRepo implements Repo {
     if (!this.data) throw new Error("não autenticado");
     if (!online()) throw new Error(OFFLINE_MSG);
     const id = this.data.workspace.id;
-    must(await this.db.from("workspaces").update({ name: c.name, cnpj: c.cnpj, activity: c.activity, company_type: c.companyType }).eq("id", id));
+    must(await this.db.from("workspaces").update({ name: c.name, cnpj: c.cnpj, activity: c.activity, company_type: c.companyType, details: c.details ?? {} }).eq("id", id));
     this.set((d) => ({
-      ...d, workspace: { ...d.workspace, name: c.name, cnpj: c.cnpj, activity: c.activity, companyType: c.companyType },
+      ...d, workspace: { ...d.workspace, name: c.name, cnpj: c.cnpj, activity: c.activity, companyType: c.companyType, details: c.details ?? {} },
       workspaces: (d.workspaces ?? []).map((w) => (w.id === id ? { ...w, name: c.name } : w)),
     }));
   }

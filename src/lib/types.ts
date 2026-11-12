@@ -8,13 +8,30 @@ export type CategoryKind = "expense" | "income" | "both";
 export type TransactionKind = "expense" | "income" | "transfer" | "card_payment";
 
 export type WorkspaceKind = "personal" | "business";
-export type CompanyType = "mei" | "me" | "epp" | "ltda" | "slu" | "sa" | "autonomo" | "outro";
+/** Tipo/regime da empresa. ltda, slu, sa e autonomo vêm do primeiro cadastro e continuam valendo. */
+export type CompanyType = "mei" | "me" | "me_simples" | "epp" | "epp_simples" | "presumido" | "real" | "outro"
+  | "ltda" | "slu" | "sa" | "autonomo";
+/** Dados complementares da empresa (Configurações). Tudo opcional. */
+export interface CompanyDetails {
+  /** Razão social (o nome da empresa é o nome fantasia). */
+  legalName?: string; email?: string; city?: string; uf?: string;
+  /** CNAE principal, só dígitos (7). */
+  cnae?: string;
+  /** Data de abertura (YYYY-MM-DD). */
+  openedOn?: string;
+  /** MEI: valor do DAS mensal. */
+  dasCents?: number;
+  pushAlerts?: boolean; monthlyReport?: boolean;
+  /** Link da prefeitura para emitir nota fiscal. */
+  nfseUrl?: string;
+  publicCatalog?: boolean;
+}
 /** Dados da empresa (espaço empresarial). */
-export interface Company { name: string; cnpj: string | null; activity: string; companyType: CompanyType; }
+export interface Company { name: string; cnpj: string | null; activity: string; companyType: CompanyType; details?: CompanyDetails }
 /** Espaço de dados: o pessoal e, se cadastrada, o da empresa. kind ausente = pessoal (dados antigos). */
 export interface Workspace {
   id: ID; name: string; currency: "BRL"; kind?: WorkspaceKind;
-  cnpj?: string | null; activity?: string; companyType?: CompanyType | null;
+  cnpj?: string | null; activity?: string; companyType?: CompanyType | null; details?: CompanyDetails;
 }
 export interface WorkspaceRef { id: ID; kind: WorkspaceKind; name: string }
 
