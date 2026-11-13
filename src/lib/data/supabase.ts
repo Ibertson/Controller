@@ -2,7 +2,7 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildTransactions } from "../transactions";
-import type { Account, Activity, ActivityStatus, Card, Category, Company, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
+import type { Account, Activity, ActivityStatus, BusinessClient, ClientKind, Receivable, Card, Category, Company, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
 import type { MoveInput } from "../stock";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import { Outbox, browserStore, isNetworkFailure, type Op, type RunResult, type SyncStatus } from "./outbox";
@@ -478,6 +478,55 @@ export class SupabaseRepo implements Repo {
   async deleteService(id: string) {
     if (!online()) throw new Error(OFFLINE_MSG);
     must(await this.db.from("services").delete().eq("id", id));
+  }
+
+  async listClients() {
+    if (!this.data) throw new Error("não autenticado");
+    const rows = must(await this.db.from("clients").select("*").eq("workspace_id", this.data.workspace.id).order("name")) as Row[];
+    return rows.map((r): BusinessClient => ({
+      id: r.id as string, name: r.name as string, phone: r.phone as string, kind: r.kind as ClientKind, notes: r.notes as string,
+      deletedAt: (r.deleted_at as string | null) ?? null, createdAt: r.created_at as string,
+    }));
+  }
+
+  async saveClient(c: BusinessClient) {
+    if (!this.data) throw new Error("não autenticado");
+    if (!online()) throw new Error(OFFLINE_MSG);
+    must(await this.db.from("clients").upsert({
+      id: c.id, workspace_id: this.data.workspace.id, name: c.name, phone: c.phone, kind: c.kind, notes: c.notes, deleted_at: c.deletedAt, created_at: c.createdAt,
+    }));
+  }
+
+  async deleteClient(id: string) {
+    if (!online()) throw new Error(OFFLINE_MSG);
+    must(await this.db.from("clients").delete().eq("id", id));
+  }
+
+  async listReceivables() {
+    if (!this.data) throw new Error("não autenticado");
+    const rows = must(await this.db.from("receivables").select("*").eq("workspace_id", this.data.workspace.id).order("due_on")) as Row[];
+    return rows.map((r): Receivable => ({
+      id: r.id as string, groupId: r.group_id as string, description: r.description as string, amountCents: Number(r.amount_cents), dueOn: r.due_on as string,
+      clientId: (r.client_id as string | null) ?? null, installment: Number(r.installment), installments: Number(r.installments),
+      receivedOn: (r.received_on as string | null) ?? null, transactionId: (r.transaction_id as string | null) ?? null,
+      deletedAt: (r.deleted_at as string | null) ?? null, createdAt: r.created_at as string,
+    }));
+  }
+
+  async saveReceivables(list: Receivable[]) {
+    if (!this.data) throw new Error("não autenticado");
+    if (!online()) throw new Error(OFFLINE_MSG);
+    if (!list.length) return;
+    const ws = this.data.workspace.id;
+    must(await this.db.from("receivables").upsert(list.map((r) => ({
+      id: r.id, workspace_id: ws, group_id: r.groupId, description: r.description, amount_cents: r.amountCents, due_on: r.dueOn, client_id: r.clientId,
+      installment: r.installment, installments: r.installments, received_on: r.receivedOn, transaction_id: r.transactionId, deleted_at: r.deletedAt, created_at: r.createdAt,
+    }))));
+  }
+
+  async deleteReceivable(id: string) {
+    if (!online()) throw new Error(OFFLINE_MSG);
+    must(await this.db.from("receivables").delete().eq("id", id));
   }
 
   async listActivities() {

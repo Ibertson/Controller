@@ -1,7 +1,7 @@
 "use client";
 
 import { buildTransactions } from "../transactions";
-import type { Activity, Company, GoalContribution, Product, Quote, Service, StockMovement, Profile, Snapshot, WorkspaceKind } from "../types";
+import type { Activity, BusinessClient, Receivable, Company, GoalContribution, Product, Quote, Service, StockMovement, Profile, Snapshot, WorkspaceKind } from "../types";
 import { applyMovement, type MoveInput } from "../stock";
 import { today } from "../dates";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
@@ -32,6 +32,8 @@ const SERVICES_KEY = "sobra:services";
 const QUOTES_KEY = "sobra:quotes";
 const MOVES_KEY = "sobra:stock";
 const ACTIVITIES_KEY = "sobra:activities";
+const CLIENTS_KEY = "sobra:clients";
+const RECEIVABLES_KEY = "sobra:receivables";
 
 export class LocalRepo implements Repo {
   readonly mode = "local" as const;
@@ -158,6 +160,34 @@ export class LocalRepo implements Repo {
   }
   async deleteProduct(id: string) {
     this.putProducts((await this.listProducts()).filter((x) => x.id !== id));
+  }
+  private wsList<T>(key: string): T[] {
+    try { return (JSON.parse(localStorage.getItem(key) ?? "{}") as Record<string, T[]>)[this.data().workspace.id] ?? []; } catch { return []; }
+  }
+  private putWsList<T>(key: string, list: T[]) {
+    let all: Record<string, T[]> = {};
+    try { all = JSON.parse(localStorage.getItem(key) ?? "{}") as Record<string, T[]>; } catch { /* recomeça */ }
+    all[this.data().workspace.id] = list;
+    try { localStorage.setItem(key, JSON.stringify(all)); }
+    catch { throw new Error("Sem espaço neste aparelho."); }
+  }
+  async listClients() { return this.wsList<BusinessClient>(CLIENTS_KEY); }
+  async saveClient(c: BusinessClient) {
+    const list = await this.listClients();
+    this.putWsList(CLIENTS_KEY, list.some((x) => x.id === c.id) ? list.map((x) => (x.id === c.id ? c : x)) : [...list, c]);
+  }
+  async deleteClient(id: string) {
+    this.putWsList(CLIENTS_KEY, (await this.listClients()).filter((x) => x.id !== id));
+    this.putWsList(RECEIVABLES_KEY, (await this.listReceivables()).map((r) => (r.clientId === id ? { ...r, clientId: null } : r)));
+  }
+  async listReceivables() { return this.wsList<Receivable>(RECEIVABLES_KEY); }
+  async saveReceivables(items: Receivable[]) {
+    const byId = new Map((await this.listReceivables()).map((r) => [r.id, r]));
+    for (const r of items) byId.set(r.id, r);
+    this.putWsList(RECEIVABLES_KEY, [...byId.values()]);
+  }
+  async deleteReceivable(id: string) {
+    this.putWsList(RECEIVABLES_KEY, (await this.listReceivables()).filter((x) => x.id !== id));
   }
   private allActivities(): Record<string, Activity[]> {
     try { return JSON.parse(localStorage.getItem(ACTIVITIES_KEY) ?? "{}") as Record<string, Activity[]>; } catch { return {}; }
