@@ -47,5 +47,5 @@ begin
   end if;
   return to_jsonb(p);
 end $$;
-revoke all on function move_stock(uuid, text, numeric, bigint, text, date, date) from public;
+revoke all on function move_stock(uuid, text, numeric, bigint, text, date, date) from public, anon;
 grant execute on function move_stock(uuid, text, numeric, bigint, text, date, date) to authenticated;
