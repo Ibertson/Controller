@@ -1,7 +1,7 @@
 "use client";
 
 import { buildTransactions } from "../transactions";
-import type { Company, GoalContribution, Product, Quote, Service, StockMovement, Profile, Snapshot, WorkspaceKind } from "../types";
+import type { Activity, Company, GoalContribution, Product, Quote, Service, StockMovement, Profile, Snapshot, WorkspaceKind } from "../types";
 import { applyMovement, type MoveInput } from "../stock";
 import { today } from "../dates";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
@@ -31,6 +31,7 @@ const PRODUCTS_KEY = "sobra:products";
 const SERVICES_KEY = "sobra:services";
 const QUOTES_KEY = "sobra:quotes";
 const MOVES_KEY = "sobra:stock";
+const ACTIVITIES_KEY = "sobra:activities";
 
 export class LocalRepo implements Repo {
   readonly mode = "local" as const;
@@ -157,6 +158,25 @@ export class LocalRepo implements Repo {
   }
   async deleteProduct(id: string) {
     this.putProducts((await this.listProducts()).filter((x) => x.id !== id));
+  }
+  private allActivities(): Record<string, Activity[]> {
+    try { return JSON.parse(localStorage.getItem(ACTIVITIES_KEY) ?? "{}") as Record<string, Activity[]>; } catch { return {}; }
+  }
+  private putActivities(list: Activity[]) {
+    const all = this.allActivities();
+    all[this.data().workspace.id] = list;
+    try { localStorage.setItem(ACTIVITIES_KEY, JSON.stringify(all)); }
+    catch { throw new Error("Sem espaço neste aparelho."); }
+  }
+  async listActivities() {
+    return [...(this.allActivities()[this.data().workspace.id] ?? [])].sort((a, b) => a.dueOn.localeCompare(b.dueOn) || a.createdAt.localeCompare(b.createdAt));
+  }
+  async saveActivity(a: Activity) {
+    const list = await this.listActivities();
+    this.putActivities(list.some((x) => x.id === a.id) ? list.map((x) => (x.id === a.id ? a : x)) : [...list, a]);
+  }
+  async deleteActivity(id: string) {
+    this.putActivities((await this.listActivities()).filter((x) => x.id !== id));
   }
   private allServices(): Record<string, Service[]> {
     try { return JSON.parse(localStorage.getItem(SERVICES_KEY) ?? "{}") as Record<string, Service[]>; } catch { return {}; }
