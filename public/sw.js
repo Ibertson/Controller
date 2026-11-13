@@ -5,7 +5,7 @@ const CACHE = `sobra-${VERSION}`;
 const ROUTES = [
   "/", "/entrar", "/transacoes", "/cartoes", "/extrato", "/contas", "/previsao", "/categorias", "/metas",
   "/fechamento", "/investimentos", "/dividas", "/lembretes", "/veiculos", "/desejos", "/pessoas", "/tutorial",
-  "/configuracoes", "/contas/conta", "/contas/conciliacao", "/empresa/fluxo-de-caixa", "/empresa/dre", "/empresa/precificacao", "/empresa/configuracoes", "/empresa/link-bio", "/empresa/produtos", "/empresa/produtos/produto", "/empresa/servicos", "/empresa/servicos/servico", "/manifest.webmanifest", "/icon.svg", "/icon-192.png", "/icon-512.png",
+  "/configuracoes", "/contas/conta", "/contas/conciliacao", "/empresa/fluxo-de-caixa", "/empresa/dre", "/empresa/precificacao", "/empresa/configuracoes", "/empresa/link-bio", "/empresa/produtos", "/empresa/produtos/produto", "/empresa/servicos", "/empresa/servicos/servico", "/empresa/orcamentos", "/empresa/orcamentos/orcamento", "/manifest.webmanifest", "/icon.svg", "/icon-192.png", "/icon-512.png",
 ];
 const ASSET = /\/_next\/static\/[^"'\s)\\]+/g;
 
