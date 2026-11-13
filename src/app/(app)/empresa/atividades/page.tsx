@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, Building2, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, Clock, Filter, ListTodo, Loader, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { AlertCircle, Building2, CalendarClock, ChevronLeft, ChevronRight, Filter, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useShell } from "@/components/AppShell";
 import { useActivities } from "@/components/activities";
 import { useSpace } from "@/components/business";
@@ -19,12 +19,12 @@ const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Jul
 const dateBR = (d: string) => d.split("-").reverse().join("/");
 const centsText = (c: number) => (c ? formatBRL(c).replace(/^R\$\s*/, "") : "");
 
-/** Cor de cada coluna: cartão de contagem e selo do quadro. */
-const TONE: Record<ActivityStatus, { text: string; soft: string; icon: React.ReactNode }> = {
-  todo: { text: "text-text", soft: "bg-surface text-text-muted", icon: <ListTodo aria-hidden className="size-5" /> },
-  doing: { text: "text-blue-600", soft: "bg-blue-600/10 text-blue-600", icon: <Loader aria-hidden className="size-5" /> },
-  waiting: { text: "text-warning", soft: "bg-warning-soft text-warning", icon: <Clock aria-hidden className="size-5" /> },
-  done: { text: "text-success", soft: "bg-accent-soft text-success", icon: <CheckCircle2 aria-hidden className="size-5" /> },
+/** Cor de cada coluna: número do cartão de contagem e selo do quadro. */
+const TONE: Record<ActivityStatus, { text: string; soft: string }> = {
+  todo: { text: "text-text", soft: "bg-surface text-text-muted" },
+  doing: { text: "text-blue-600", soft: "bg-blue-600/10 text-blue-600" },
+  waiting: { text: "text-warning", soft: "bg-warning-soft text-warning" },
+  done: { text: "text-success", soft: "bg-accent-soft text-success" },
 };
 
 /** Agenda / Atividades: quadro dos serviços e projetos da empresa, de "A Fazer" até "Concluído". */
@@ -111,9 +111,8 @@ export default function Atividades() {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {ACTIVITY_STATUSES.map((s) => (
-          <div key={s.id} className="flex items-center gap-2.5 rounded-lg border border-border bg-bg p-3 shadow-card sm:gap-3 sm:p-4">
-            <span className={`grid size-10 shrink-0 place-items-center rounded-pill ${TONE[s.id].soft}`}>{TONE[s.id].icon}</span>
-            <span className="min-w-0">
+          <div key={s.id} className="rounded-lg border border-border bg-bg p-3 shadow-card sm:p-4">
+            <span className="block min-w-0">
               <span className="block text-[11px] font-semibold uppercase leading-tight tracking-wide text-text-muted sm:text-xs">{s.short}</span>
               <span className={`num block text-2xl font-bold ${TONE[s.id].text}`}>{counts[s.id].n}</span>
             </span>
@@ -266,7 +265,7 @@ function ActivityDialog({ initial, activities, onClose, onSaved, onDeleted }: {
         <Field label="Serviço / Projeto *" htmlFor="act-title" error={err.title}>
           <Input id="act-title" maxLength={200} placeholder="Descrição do serviço" value={f.title} onChange={(e) => set("title")(e.target.value)} aria-invalid={!!err.title || undefined} />
         </Field>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-4">
           <Field label="Valor *" htmlFor="act-value" error={err.value}>
             <div className="relative">
               <span aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-text-muted">R$</span>
@@ -289,22 +288,19 @@ function ActivityDialog({ initial, activities, onClose, onSaved, onDeleted }: {
           <textarea id="act-notes" rows={3} maxLength={2000} placeholder="Detalhes adicionais..." value={f.notes} onChange={(e) => set("notes")(e.target.value)} className={`${inputClass} !h-auto py-2`} />
         </Field>
         {err.form && <p role="alert" className="text-sm text-danger">{err.form}</p>}
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          {initial ? (
-            confirmDelete ? (
+        <Button type="submit" size="lg" loading={busy} className="w-full rounded-pill">{initial ? "Salvar alterações" : "Criar Atividade"}</Button>
+        {initial && (
+          <div className="flex justify-center">
+            {confirmDelete ? (
               <span className="flex items-center gap-2">
                 <Button type="button" variant="danger" size="sm" loading={busy} onClick={() => void remove()}>Confirmar exclusão</Button>
                 <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmDelete(false)}>Não</Button>
               </span>
             ) : (
-              <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmDelete(true)} className="text-danger"><Trash2 aria-hidden className="size-4" />Excluir</Button>
-            )
-          ) : <span />}
-          <div className="flex gap-2">
-            <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" loading={busy}>{initial ? "Salvar" : "Criar Atividade"}</Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmDelete(true)} className="text-danger"><Trash2 aria-hidden className="size-4" />Excluir atividade</Button>
+            )}
           </div>
-        </div>
+        )}
       </form>
     </Dialog>
   );
