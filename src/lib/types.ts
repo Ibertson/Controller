@@ -56,6 +56,24 @@ export interface StockMovement {
   unitCostCents: number | null;
   note: string; expiresOn: string | null; occurredOn: string; createdAt: string;
 }
+export type ClientKind = "eventual" | "recorrente";
+/** Cliente da empresa (aba Clientes & Recebíveis). */
+export interface BusinessClient {
+  id: ID; name: string; phone: string; kind: ClientKind; notes: string;
+  /** Na lixeira desde (ISO); null = ativo. */
+  deletedAt: string | null; createdAt: string;
+}
+/** Conta a receber; parcelas da mesma venda dividem o groupId. */
+export interface Receivable {
+  id: ID; groupId: string; description: string; amountCents: number; dueOn: string;
+  clientId: string | null;
+  installment: number; installments: number;
+  /** Data em que foi recebida; null = em aberto. */
+  receivedOn: string | null;
+  /** Receita lançada ao marcar como recebida. */
+  transactionId: string | null;
+  deletedAt: string | null; createdAt: string;
+}
 export type ActivityStatus = "todo" | "doing" | "waiting" | "done";
 /** Atividade da agenda da empresa (quadro A Fazer → Concluído). */
 export interface Activity {

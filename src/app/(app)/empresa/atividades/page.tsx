@@ -7,6 +7,7 @@ import { useActivities } from "@/components/activities";
 import { useSpace } from "@/components/business";
 import { Dialog } from "@/components/Dialog";
 import { useQuotes } from "@/components/quotes";
+import { useReceivables } from "@/components/receivables";
 import { useServices } from "@/components/services";
 import { Button, Card, Field, Input, Skeleton, inputClass } from "@/components/ui";
 import { ACTIVITY_STATUSES, activityCounts, clientSuggestions, filterActivities, isOverdue, neighborStatus, statusLabel } from "@/lib/activities";
@@ -201,6 +202,7 @@ function ActivityDialog({ initial, activities, onClose, onSaved, onDeleted }: {
   const snap = useSnapshot();
   const { list: services } = useServices();
   const { list: quotes } = useQuotes();
+  const { data: crm } = useReceivables();
   const [f, setF] = useState({
     client: initial?.clientName ?? "", serviceId: initial?.serviceId ?? "", title: initial?.title ?? "", value: centsText(initial?.valueCents ?? 0),
     due: initial?.dueOn ?? today(), notes: initial?.notes ?? "", status: initial?.status ?? ("todo" as ActivityStatus),
@@ -209,7 +211,7 @@ function ActivityDialog({ initial, activities, onClose, onSaved, onDeleted }: {
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const set = (k: keyof typeof f) => (v: string) => { setF((x) => ({ ...x, [k]: v })); setErr((e) => ({ ...e, [k]: "", form: "" })); };
-  const clients = clientSuggestions(activities.map((a) => a.clientName), (quotes ?? []).map((x) => x.clientName), (snap?.people ?? []).filter((p) => !p.archived).map((p) => p.name));
+  const clients = clientSuggestions((crm?.clients ?? []).filter((c) => !c.deletedAt).map((c) => c.name), activities.map((a) => a.clientName), (quotes ?? []).map((x) => x.clientName), (snap?.people ?? []).filter((p) => !p.archived).map((p) => p.name));
   const activeServices = (services ?? []).filter((s) => s.active || s.id === f.serviceId);
 
   function pickService(id: string) {

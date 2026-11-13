@@ -1,4 +1,4 @@
-import type { Account, Activity, Card, Category, Company, Workspace, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, Transaction } from "../types";
+import type { Account, Activity, BusinessClient, Receivable, Card, Category, Company, Workspace, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, Transaction } from "../types";
 import type { MoveInput } from "../stock";
 import type { BioPage } from "../bio";
 import type { SyncStatus } from "./outbox";
@@ -73,6 +73,18 @@ export interface Repo {
   publicQuote(token: string): Promise<Quote | null>;
   /** Resposta do cliente pelo link: aprovar ou recusar. Devolve o orçamento atualizado. */
   respondQuote(token: string, accept: boolean): Promise<Quote | null>;
+
+  /** Clientes da empresa (inclui os da lixeira, com deletedAt). */
+  listClients(): Promise<BusinessClient[]>;
+  /** Cria ou altera um cliente (mandar para a lixeira = deletedAt preenchido). */
+  saveClient(c: BusinessClient): Promise<void>;
+  /** Apaga de vez (as contas dele ficam sem cliente). */
+  deleteClient(id: string): Promise<void>;
+  /** Contas a receber (inclui as da lixeira). */
+  listReceivables(): Promise<Receivable[]>;
+  /** Cria ou altera várias contas de uma vez (parcelas). */
+  saveReceivables(list: Receivable[]): Promise<void>;
+  deleteReceivable(id: string): Promise<void>;
 
   /** Atividades da agenda do espaço atual (vencimento mais próximo primeiro). */
   listActivities(): Promise<Activity[]>;
