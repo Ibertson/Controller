@@ -29,6 +29,8 @@ export interface CompanyDetails {
   productCategories?: string[];
   /** Categorias de serviço criadas pela empresa (além das fixas). */
   serviceCategories?: string[];
+  /** Tipos de serviço da janela "Novo orçamento"; ausente = o catálogo sugerido. */
+  quoteCatalog?: QuoteCategory[];
 }
 /** Dados da empresa (espaço empresarial). */
 export interface Company { name: string; cnpj: string | null; activity: string; companyType: CompanyType; details?: CompanyDetails }
@@ -52,6 +54,30 @@ export interface Service {
   /** Duração em horas (aceita fração: 2.5). */
   hours: number;
   active: boolean;
+  createdAt: string;
+}
+/** Categoria de serviço do orçamento com as subcategorias (editáveis pela empresa). */
+export interface QuoteCategory { id: string; name: string; icon: string; items: string[] }
+export type QuoteStatus = "enviado" | "visualizado" | "aprovado" | "andamento" | "concluido" | "recusado";
+export type QuoteKind = "produtos" | "servico" | "personalizado";
+export interface QuoteItem { id: string; description: string; qty: number; unitCents: number; productId?: string | null; serviceId?: string | null }
+/** Dados da empresa copiados no orçamento (aparecem no link do cliente). */
+export interface QuoteCompany { name: string; cnpj: string | null; email: string; city: string; uf: string }
+export interface Quote {
+  id: ID;
+  /** Número sequencial da empresa (ORC-0001). */
+  number: number;
+  kind: QuoteKind; category: string; title: string;
+  clientName: string; clientPhone: string; clientEmail: string;
+  issuedOn: string; validUntil: string;
+  status: QuoteStatus;
+  items: QuoteItem[];
+  discountCents: number;
+  notes: string;
+  /** Código do link público do orçamento. */
+  token: string;
+  viewedAt: string | null;
+  company: QuoteCompany;
   createdAt: string;
 }
 export interface Workspace {

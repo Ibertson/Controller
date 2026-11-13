@@ -2,7 +2,7 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildTransactions } from "../transactions";
-import type { Account, Card, Category, Company, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Service, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
+import type { Account, Card, Category, Company, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import { Outbox, browserStore, isNetworkFailure, type Op, type RunResult, type SyncStatus } from "./outbox";
 import { emptySnapshot } from "./seed";
@@ -479,6 +479,41 @@ export class SupabaseRepo implements Repo {
     must(await this.db.from("services").delete().eq("id", id));
   }
 
+  async listQuotes() {
+    if (!this.data) throw new Error("não autenticado");
+    const rows = must(await this.db.from("quotes").select("*").eq("workspace_id", this.data.workspace.id).order("number", { ascending: false })) as Row[];
+    return rows.map(quoteFromRow);
+  }
+
+  async saveQuote(q: Quote) {
+    if (!this.data) throw new Error("não autenticado");
+    if (!online()) throw new Error(OFFLINE_MSG);
+    const r = await this.db.from("quotes").upsert({
+      id: q.id, workspace_id: this.data.workspace.id, number: q.number, kind: q.kind, category: q.category, title: q.title,
+      client_name: q.clientName, client_phone: q.clientPhone, client_email: q.clientEmail, issued_on: q.issuedOn, valid_until: q.validUntil,
+      status: q.status, items: q.items, discount_cents: q.discountCents, notes: q.notes, token: q.token, company: q.company, created_at: q.createdAt,
+    });
+    if (r.error?.code === "23505") throw new Error("Já existe um orçamento com esse número.");
+    must(r);
+  }
+
+  async deleteQuote(id: string) {
+    if (!online()) throw new Error(OFFLINE_MSG);
+    must(await this.db.from("quotes").delete().eq("id", id));
+  }
+
+  async publicQuote(token: string) {
+    const { data, error } = await this.db.rpc("public_quote", { p_token: token });
+    if (error) throw new Error(error.message);
+    return data ? quoteFromRow(data as Row) : null;
+  }
+
+  async respondQuote(token: string, accept: boolean) {
+    const { data, error } = await this.db.rpc("respond_quote", { p_token: token, p_accept: accept });
+    if (error) throw new Error(error.message);
+    return data ? quoteFromRow(data as Row) : null;
+  }
+
   async publicBio(slug: string) {
     const r = must(await this.db.from("bio_pages").select("slug,published,data").eq("slug", slug).eq("published", true).maybeSingle()) as Row | null;
     return r ? ({ slug: r.slug, published: r.published, data: r.data } as BioPage) : null;
@@ -706,4 +741,14 @@ export class SupabaseRepo implements Repo {
       transactions: d.transactions.map((t) => (t.recurringId === id ? { ...t, recurringId: null } : t)),
     }));
   }
+}
+
+function quoteFromRow(r: Row): Quote {
+  return {
+    id: r.id as string, number: Number(r.number), kind: r.kind as Quote["kind"], category: r.category as string, title: r.title as string,
+    clientName: r.client_name as string, clientPhone: r.client_phone as string, clientEmail: r.client_email as string,
+    issuedOn: r.issued_on as string, validUntil: r.valid_until as string, status: r.status as Quote["status"],
+    items: (r.items as Quote["items"]) ?? [], discountCents: Number(r.discount_cents), notes: r.notes as string, token: r.token as string,
+    viewedAt: (r.viewed_at as string | null) ?? null, company: r.company as Quote["company"], createdAt: r.created_at as string,
+  };
 }

@@ -1,4 +1,4 @@
-import type { Account, Card, Category, Company, Workspace, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Service, Profile, Recurring, Snapshot, Transaction } from "../types";
+import type { Account, Card, Category, Company, Workspace, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, Profile, Recurring, Snapshot, Transaction } from "../types";
 import type { BioPage } from "../bio";
 import type { SyncStatus } from "./outbox";
 import { emptySnapshot } from "./seed";
@@ -57,6 +57,16 @@ export interface Repo {
   /** Cria ou altera um serviço. */
   saveService(s: Service): Promise<void>;
   deleteService(id: string): Promise<void>;
+
+  /** Orçamentos do espaço atual (mais novos primeiro). */
+  listQuotes(): Promise<Quote[]>;
+  /** Cria ou altera um orçamento. */
+  saveQuote(q: Quote): Promise<void>;
+  deleteQuote(id: string): Promise<void>;
+  /** Orçamento aberto pelo link do cliente (sem login); marca como visualizado. */
+  publicQuote(token: string): Promise<Quote | null>;
+  /** Resposta do cliente pelo link: aprovar ou recusar. Devolve o orçamento atualizado. */
+  respondQuote(token: string, accept: boolean): Promise<Quote | null>;
 
   /** Link Bio do espaço atual; null = ainda não criado. */
   loadBio(): Promise<BioPage | null>;

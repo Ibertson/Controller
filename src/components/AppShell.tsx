@@ -92,7 +92,7 @@ const businessNav: NavGroup[] = [
   { group: "Produtos e serviços", items: [
     { href: "/empresa/produtos", label: "Produtos", icon: Package },
     { href: "/empresa/servicos", label: "Serviços", icon: Wrench },
-    { href: mod("orcamentos"), label: "Orçamentos", icon: FileCheck2 },
+    { href: "/empresa/orcamentos", label: "Orçamentos", icon: FileCheck2 },
   ] },
   { group: "Fiscal e RH", items: [
     { href: mod("notas-fiscais"), label: "Notas Fiscais", icon: ReceiptText },
@@ -266,7 +266,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   // No painel o mês é escolhido nos botões de mês da própria página.
   const showMonth = ["/extrato", "/categorias", "/fechamento"].includes(path);
   // Lembretes, Link Bio e o cadastro de produto não são lançamentos, então o botão de lançamento sai do topo e do celular.
-  const showNew = !path.startsWith("/lembretes") && !path.startsWith("/empresa/link-bio") && !path.startsWith("/empresa/produtos/produto") && !path.startsWith("/empresa/servicos/servico");
+  const showNew = !path.startsWith("/lembretes") && !path.startsWith("/empresa/link-bio") && !path.startsWith("/empresa/produtos/produto") && !path.startsWith("/empresa/servicos/servico") && !path.startsWith("/empresa/orcamentos");
 
   return (
     <ShellCtx.Provider value={{ month, setMonth, openNew, toast }}>

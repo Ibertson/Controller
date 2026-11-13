@@ -1,7 +1,7 @@
 "use client";
 
 import { buildTransactions } from "../transactions";
-import type { Company, GoalContribution, Product, Service, Profile, Snapshot, WorkspaceKind } from "../types";
+import type { Company, GoalContribution, Product, Quote, Service, Profile, Snapshot, WorkspaceKind } from "../types";
 import { today } from "../dates";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import type { BioPage } from "../bio";
@@ -28,6 +28,7 @@ function withList(open: Snapshot, others: Snapshot[]): Snapshot {
 const BIO_KEY = "sobra:bio";
 const PRODUCTS_KEY = "sobra:products";
 const SERVICES_KEY = "sobra:services";
+const QUOTES_KEY = "sobra:quotes";
 
 export class LocalRepo implements Repo {
   readonly mode = "local" as const;
@@ -173,6 +174,51 @@ export class LocalRepo implements Repo {
   }
   async deleteService(id: string) {
     this.putServices((await this.listServices()).filter((x) => x.id !== id));
+  }
+  private allQuotes(): Record<string, Quote[]> {
+    try { return JSON.parse(localStorage.getItem(QUOTES_KEY) ?? "{}") as Record<string, Quote[]>; } catch { return {}; }
+  }
+  private writeQuotes(all: Record<string, Quote[]>) {
+    try { localStorage.setItem(QUOTES_KEY, JSON.stringify(all)); }
+    catch { throw new Error("Sem espaço neste aparelho."); }
+  }
+  async listQuotes() {
+    return [...(this.allQuotes()[this.data().workspace.id] ?? [])].sort((a, b) => b.number - a.number);
+  }
+  async saveQuote(q: Quote) {
+    const all = this.allQuotes();
+    const ws = this.data().workspace.id;
+    const list = all[ws] ?? [];
+    if (list.some((x) => x.id !== q.id && x.number === q.number)) throw new Error("Já existe um orçamento com esse número.");
+    all[ws] = list.some((x) => x.id === q.id) ? list.map((x) => (x.id === q.id ? q : x)) : [q, ...list];
+    this.writeQuotes(all);
+  }
+  async deleteQuote(id: string) {
+    const all = this.allQuotes();
+    const ws = this.data().workspace.id;
+    all[ws] = (all[ws] ?? []).filter((x) => x.id !== id);
+    this.writeQuotes(all);
+  }
+  /** No modo local o link só abre neste aparelho; a visita do próprio dono não conta como "visualizado". */
+  async publicQuote(token: string) {
+    for (const list of Object.values(this.allQuotes())) {
+      const q = list.find((x) => x.token === token);
+      if (q) return q;
+    }
+    return null;
+  }
+  async respondQuote(token: string, accept: boolean) {
+    const all = this.allQuotes();
+    for (const [ws, list] of Object.entries(all)) {
+      const q = list.find((x) => x.token === token);
+      if (!q) continue;
+      if (q.status !== "enviado" && q.status !== "visualizado") return q;
+      const next: Quote = { ...q, status: accept ? "aprovado" : "recusado" };
+      all[ws] = list.map((x) => (x.id === q.id ? next : x));
+      this.writeQuotes(all);
+      return next;
+    }
+    return null;
   }
 
   async publicBio(slug: string) {
