@@ -56,6 +56,17 @@ export interface StockMovement {
   unitCostCents: number | null;
   note: string; expiresOn: string | null; occurredOn: string; createdAt: string;
 }
+export type ActivityStatus = "todo" | "doing" | "waiting" | "done";
+/** Atividade da agenda da empresa (quadro A Fazer → Concluído). */
+export interface Activity {
+  id: ID; clientName: string;
+  /** Serviço cadastrado usado como base (opcional). */
+  serviceId: string | null;
+  title: string; valueCents: number;
+  /** Data de vencimento (entrega ou cobrança). */
+  dueOn: string;
+  notes: string; status: ActivityStatus; createdAt: string;
+}
 export interface Service {
   id: ID; name: string; category: string; description: string;
   /** Valor padrão cobrado. */

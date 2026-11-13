@@ -1,4 +1,4 @@
-import type { Account, Card, Category, Company, Workspace, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, Transaction } from "../types";
+import type { Account, Activity, Card, Category, Company, Workspace, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, Transaction } from "../types";
 import type { MoveInput } from "../stock";
 import type { BioPage } from "../bio";
 import type { SyncStatus } from "./outbox";
@@ -73,6 +73,12 @@ export interface Repo {
   publicQuote(token: string): Promise<Quote | null>;
   /** Resposta do cliente pelo link: aprovar ou recusar. Devolve o orçamento atualizado. */
   respondQuote(token: string, accept: boolean): Promise<Quote | null>;
+
+  /** Atividades da agenda do espaço atual (vencimento mais próximo primeiro). */
+  listActivities(): Promise<Activity[]>;
+  /** Cria ou altera uma atividade (inclusive a mudança de coluna). */
+  saveActivity(a: Activity): Promise<void>;
+  deleteActivity(id: string): Promise<void>;
 
   /** Link Bio do espaço atual; null = ainda não criado. */
   loadBio(): Promise<BioPage | null>;

@@ -2,7 +2,7 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildTransactions } from "../transactions";
-import type { Account, Card, Category, Company, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
+import type { Account, Activity, ActivityStatus, Card, Category, Company, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
 import type { MoveInput } from "../stock";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import { Outbox, browserStore, isNetworkFailure, type Op, type RunResult, type SyncStatus } from "./outbox";
@@ -478,6 +478,29 @@ export class SupabaseRepo implements Repo {
   async deleteService(id: string) {
     if (!online()) throw new Error(OFFLINE_MSG);
     must(await this.db.from("services").delete().eq("id", id));
+  }
+
+  async listActivities() {
+    if (!this.data) throw new Error("não autenticado");
+    const rows = must(await this.db.from("activities").select("*").eq("workspace_id", this.data.workspace.id).order("due_on").order("created_at")) as Row[];
+    return rows.map((r): Activity => ({
+      id: r.id as string, clientName: r.client_name as string, serviceId: (r.service_id as string | null) ?? null, title: r.title as string,
+      valueCents: Number(r.value_cents), dueOn: r.due_on as string, notes: r.notes as string, status: r.status as ActivityStatus, createdAt: r.created_at as string,
+    }));
+  }
+
+  async saveActivity(a: Activity) {
+    if (!this.data) throw new Error("não autenticado");
+    if (!online()) throw new Error(OFFLINE_MSG);
+    must(await this.db.from("activities").upsert({
+      id: a.id, workspace_id: this.data.workspace.id, client_name: a.clientName, service_id: a.serviceId, title: a.title,
+      value_cents: a.valueCents, due_on: a.dueOn, notes: a.notes, status: a.status, created_at: a.createdAt,
+    }));
+  }
+
+  async deleteActivity(id: string) {
+    if (!online()) throw new Error(OFFLINE_MSG);
+    must(await this.db.from("activities").delete().eq("id", id));
   }
 
   async listStockMovements(month: string) {

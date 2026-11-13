@@ -9,7 +9,7 @@ export const MODULES: Module[] = [
   { slug: "pedidos", label: "Pedidos", description: "Pedidos de clientes com situação (novo, em preparo, entregue) e o valor a receber de cada um." },
   { slug: "notas-fiscais", label: "Notas Fiscais", description: "Registro das notas emitidas e recebidas: número, cliente ou fornecedor, valor e data." },
   { slug: "obrigacoes-fiscais", label: "Obrigações Fiscais", description: "Calendário de guias e impostos (DAS, DARF, ISS) com vencimento e aviso antes do prazo.",
-    today: { href: "/lembretes", label: "Crie o aviso em Agenda / Atividades" } },
+    today: { href: "/empresa/atividades", label: "Crie como atividade em Agenda / Atividades" } },
   { slug: "pro-labore", label: "Pró-Labore", description: "Retirada mensal dos sócios, separada das despesas da empresa.",
     today: { href: "/previsao", label: "Cadastre como gasto fixo na categoria Pró-labore" } },
   { slug: "funcionarios", label: "Funcionários", description: "Equipe com salário, data de admissão e encargos de cada mês." },
