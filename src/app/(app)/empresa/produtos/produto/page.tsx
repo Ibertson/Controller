@@ -97,7 +97,7 @@ function ProductForm({ initial }: { initial?: Product }) {
       await repo.saveProduct({
         id: initial?.id ?? crypto.randomUUID(), createdAt: initial?.createdAt ?? new Date().toISOString(),
         name: f.name.trim(), category: f.category, description: f.description.trim(), sku: f.sku.trim(), unit: f.unit,
-        costCents: cost ?? 0, priceCents: price ?? 0, stock: stock ?? 0, minStock: minStock ?? 0, photo, active: f.active,
+        costCents: cost ?? 0, priceCents: price ?? 0, stock: stock ?? 0, minStock: minStock ?? 0, photo, active: f.active, expiresOn: initial?.expiresOn ?? null,
       });
       toast(initial ? "Produto salvo" : "Produto cadastrado");
       // A tela fica guardada pelo Next ao sair: o próximo "Novo Produto" começa limpo.

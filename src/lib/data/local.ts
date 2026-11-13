@@ -1,7 +1,8 @@
 "use client";
 
 import { buildTransactions } from "../transactions";
-import type { Company, GoalContribution, Product, Quote, Service, Profile, Snapshot, WorkspaceKind } from "../types";
+import type { Company, GoalContribution, Product, Quote, Service, StockMovement, Profile, Snapshot, WorkspaceKind } from "../types";
+import { applyMovement, type MoveInput } from "../stock";
 import { today } from "../dates";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import type { BioPage } from "../bio";
@@ -29,6 +30,7 @@ const BIO_KEY = "sobra:bio";
 const PRODUCTS_KEY = "sobra:products";
 const SERVICES_KEY = "sobra:services";
 const QUOTES_KEY = "sobra:quotes";
+const MOVES_KEY = "sobra:stock";
 
 export class LocalRepo implements Repo {
   readonly mode = "local" as const;
@@ -174,6 +176,30 @@ export class LocalRepo implements Repo {
   }
   async deleteService(id: string) {
     this.putServices((await this.listServices()).filter((x) => x.id !== id));
+  }
+  private allMoves(): Record<string, StockMovement[]> {
+    try { return JSON.parse(localStorage.getItem(MOVES_KEY) ?? "{}") as Record<string, StockMovement[]>; } catch { return {}; }
+  }
+  async listStockMovements(month: string) {
+    return (this.allMoves()[this.data().workspace.id] ?? []).filter((m) => m.occurredOn.startsWith(month))
+      .sort((a, b) => b.occurredOn.localeCompare(a.occurredOn) || b.createdAt.localeCompare(a.createdAt));
+  }
+  async moveStock(m: MoveInput) {
+    const list = await this.listProducts();
+    const p = list.find((x) => x.id === m.productId);
+    if (!p) throw new Error("Produto não encontrado.");
+    const next = applyMovement(p, m);
+    const ws = this.data().workspace.id;
+    const all = this.allMoves();
+    const mv: StockMovement = {
+      id: newId(), productId: p.id, productName: p.name, kind: m.kind, qty: m.qty,
+      unitCostCents: m.kind === "in" ? m.unitCostCents ?? p.costCents : p.costCents,
+      note: m.note, expiresOn: m.kind === "in" ? m.expiresOn : null, occurredOn: m.occurredOn, createdAt: new Date().toISOString(),
+    };
+    all[ws] = [mv, ...(all[ws] ?? [])];
+    this.putProducts(list.map((x) => (x.id === p.id ? next : x)));
+    try { localStorage.setItem(MOVES_KEY, JSON.stringify(all)); } catch { throw new Error("Sem espaço neste aparelho."); }
+    return next;
   }
   private allQuotes(): Record<string, Quote[]> {
     try { return JSON.parse(localStorage.getItem(QUOTES_KEY) ?? "{}") as Record<string, Quote[]>; } catch { return {}; }

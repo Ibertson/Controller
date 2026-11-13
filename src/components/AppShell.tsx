@@ -71,7 +71,7 @@ const businessNav: NavGroup[] = [
   { group: "Operacional", items: [
     { href: mod("ponto-de-venda"), label: "Ponto de Venda", icon: Store },
     { href: mod("caixa-diario"), label: "Caixa Diário", icon: Wallet },
-    { href: mod("estoque"), label: "Estoque", icon: Boxes },
+    { href: "/empresa/estoque", label: "Estoque", icon: Boxes },
   ] },
   { group: "Vendas e clientes", items: [
     { href: mod("pedidos"), label: "Pedidos", icon: Package },

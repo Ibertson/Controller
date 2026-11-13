@@ -1,4 +1,5 @@
-import type { Account, Card, Category, Company, Workspace, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, Profile, Recurring, Snapshot, Transaction } from "../types";
+import type { Account, Card, Category, Company, Workspace, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, Transaction } from "../types";
+import type { MoveInput } from "../stock";
 import type { BioPage } from "../bio";
 import type { SyncStatus } from "./outbox";
 import { emptySnapshot } from "./seed";
@@ -57,6 +58,11 @@ export interface Repo {
   /** Cria ou altera um serviço. */
   saveService(s: Service): Promise<void>;
   deleteService(id: string): Promise<void>;
+
+  /** Movimentações de estoque do mês ("2026-11"), mais novas primeiro. */
+  listStockMovements(month: string): Promise<StockMovement[]>;
+  /** Registra uma entrada ou saída e devolve o produto com o estoque atualizado. */
+  moveStock(m: MoveInput): Promise<Product>;
 
   /** Orçamentos do espaço atual (mais novos primeiro). */
   listQuotes(): Promise<Quote[]>;

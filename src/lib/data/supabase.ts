@@ -2,7 +2,8 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildTransactions } from "../transactions";
-import type { Account, Card, Category, Company, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
+import type { Account, Card, Category, Company, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
+import type { MoveInput } from "../stock";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import { Outbox, browserStore, isNetworkFailure, type Op, type RunResult, type SyncStatus } from "./outbox";
 import { emptySnapshot } from "./seed";
@@ -436,7 +437,7 @@ export class SupabaseRepo implements Repo {
     return rows.map((r): Product => ({
       id: r.id as string, name: r.name as string, category: r.category as string, description: r.description as string,
       sku: r.sku as string, unit: r.unit as string, costCents: Number(r.cost_cents), priceCents: Number(r.price_cents),
-      stock: Number(r.stock), minStock: Number(r.min_stock), photo: (r.photo as string | null) ?? null, active: r.active as boolean,
+      stock: Number(r.stock), minStock: Number(r.min_stock), photo: (r.photo as string | null) ?? null, active: r.active as boolean, expiresOn: (r.expires_on as string | null) ?? null,
       createdAt: r.created_at as string,
     }));
   }
@@ -446,7 +447,7 @@ export class SupabaseRepo implements Repo {
     if (!online()) throw new Error(OFFLINE_MSG);
     must(await this.db.from("products").upsert({
       id: p.id, workspace_id: this.data.workspace.id, name: p.name, category: p.category, description: p.description, sku: p.sku,
-      unit: p.unit, cost_cents: p.costCents, price_cents: p.priceCents, stock: p.stock, min_stock: p.minStock, photo: p.photo, active: p.active,
+      unit: p.unit, cost_cents: p.costCents, price_cents: p.priceCents, stock: p.stock, min_stock: p.minStock, photo: p.photo, active: p.active, expires_on: p.expiresOn ?? null,
       created_at: p.createdAt,
     }));
   }
@@ -477,6 +478,34 @@ export class SupabaseRepo implements Repo {
   async deleteService(id: string) {
     if (!online()) throw new Error(OFFLINE_MSG);
     must(await this.db.from("services").delete().eq("id", id));
+  }
+
+  async listStockMovements(month: string) {
+    if (!this.data) throw new Error("não autenticado");
+    const [y, mo] = month.split("-").map(Number);
+    const end = new Date(Date.UTC(y, mo, 1)).toISOString().slice(0, 10);
+    const rows = must(await this.db.from("stock_movements").select("*").eq("workspace_id", this.data.workspace.id)
+      .gte("occurred_on", `${month}-01`).lt("occurred_on", end).order("occurred_on", { ascending: false }).order("created_at", { ascending: false })) as Row[];
+    return rows.map((r): StockMovement => ({
+      id: r.id as string, productId: (r.product_id as string | null) ?? "", productName: r.product_name as string,
+      kind: r.kind as "in" | "out", qty: Number(r.qty), unitCostCents: r.unit_cost_cents == null ? null : Number(r.unit_cost_cents),
+      note: r.note as string, expiresOn: (r.expires_on as string | null) ?? null, occurredOn: r.occurred_on as string, createdAt: r.created_at as string,
+    }));
+  }
+
+  async moveStock(m: MoveInput) {
+    if (!online()) throw new Error(OFFLINE_MSG);
+    const { data, error } = await this.db.rpc("move_stock", {
+      p_product: m.productId, p_kind: m.kind, p_qty: m.qty, p_unit_cost: m.unitCostCents, p_note: m.note, p_expires: m.expiresOn, p_on: m.occurredOn,
+    });
+    if (error) throw new Error(error.message.includes("estoque") ? error.message : "Não foi possível registrar a movimentação.");
+    const r = data as Row;
+    return {
+      id: r.id as string, name: r.name as string, category: r.category as string, description: r.description as string,
+      sku: r.sku as string, unit: r.unit as string, costCents: Number(r.cost_cents), priceCents: Number(r.price_cents),
+      stock: Number(r.stock), minStock: Number(r.min_stock), photo: (r.photo as string | null) ?? null, active: r.active as boolean,
+      expiresOn: (r.expires_on as string | null) ?? null, createdAt: r.created_at as string,
+    } satisfies Product;
   }
 
   async listQuotes() {
