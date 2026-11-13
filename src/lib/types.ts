@@ -45,7 +45,16 @@ export interface Product {
   /** Foto já reduzida no navegador (data URL). */
   photo: string | null;
   active: boolean;
+  /** Validade mais próxima entre os lotes em estoque (vem das entradas). */
+  expiresOn?: string | null;
   createdAt: string;
+}
+/** Entrada ou saída de estoque de um produto. */
+export interface StockMovement {
+  id: ID; productId: string; productName: string; kind: "in" | "out"; qty: number;
+  /** Custo unitário na hora da movimentação (entrada: o da compra; saída: o custo médio). */
+  unitCostCents: number | null;
+  note: string; expiresOn: string | null; occurredOn: string; createdAt: string;
 }
 export interface Service {
   id: ID; name: string; category: string; description: string;
