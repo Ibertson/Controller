@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { byCategory, distinct, emptyAdvanced, expenseRows, expenseSummary, filterExpenses, type ExpenseFilter } from "./expenses";
+import { byCategory, distinct, emptyAdvanced, expenseDescription, expenseRows, expenseSummary, filterExpenses, findCategoryByName, receiptError, splitCents, type ExpenseFilter } from "./expenses";
 import type { Category, ExpenseDetail, Transaction } from "./types";
 
 const tx = (o: Partial<Transaction>): Transaction => ({
@@ -47,5 +47,30 @@ describe("despesas", () => {
     const cats = [{ id: "c1", name: "Aluguel", parentId: null }, { id: "c2", name: "Mercadorias", parentId: "c3" }, { id: "c3", name: "Estoque", parentId: null }] as Category[];
     expect(byCategory(filterExpenses(rows, base, T), cats).map((c) => [c.name, c.cents])).toEqual([["Sem categoria", 304000], ["Estoque", 50000], ["Aluguel", 10000]]);
     expect(distinct([" b", "a", "b", ""])).toEqual(["a", "b"]);
+  });
+});
+
+describe("Registrar Despesa", () => {
+  it("divide o total e põe a sobra na primeira parcela", () => {
+    expect(splitCents(100000, 3)).toEqual([33334, 33333, 33333]);
+    expect(splitCents(500, 2)).toEqual([250, 250]);
+  });
+  it("monta a descrição com categoria e fornecedor", () => {
+    expect(expenseDescription("Aluguel", " Imobiliária Sol ")).toBe("Aluguel · Imobiliária Sol");
+    expect(expenseDescription("Energia", "")).toBe("Energia");
+    expect(expenseDescription("", "")).toBe("Despesa");
+  });
+  it("acha a categoria sem diferenciar acento e maiúscula", () => {
+    const cats = [
+      { id: "a", workspaceId: "w", name: "agua", icon: "", kind: "expense", monthlyLimitCents: null, archived: false },
+      { id: "b", workspaceId: "w", name: "Água", icon: "", kind: "income", monthlyLimitCents: null, archived: false },
+    ] as Category[];
+    expect(findCategoryByName(cats, "Água")?.id).toBe("a");
+    expect(findCategoryByName(cats, "Energia")).toBeUndefined();
+  });
+  it("aceita só PDF, JPG ou PNG até 5MB", () => {
+    expect(receiptError({ type: "application/pdf", size: 1000 })).toBeNull();
+    expect(receiptError({ type: "image/gif", size: 1000 })).toMatch(/PDF/);
+    expect(receiptError({ type: "image/png", size: 6 * 1024 * 1024 })).toMatch(/5MB/);
   });
 });

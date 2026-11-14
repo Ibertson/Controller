@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { Building2, Check, Filter, Package, Plus, ReceiptText, Trash2, UserRound, X } from "lucide-react";
+import { Building2, Check, CloudUpload, FileText, Filter, Layers, Minus, Package, Paperclip, Plus, ReceiptText, Trash2, UserRound, X } from "lucide-react";
 import { useShell } from "@/components/AppShell";
 import { useSpace } from "@/components/business";
 import { Dialog } from "@/components/Dialog";
@@ -11,13 +11,14 @@ import { Button, Card, Field, Input, Skeleton, inputClass } from "@/components/u
 import { repo, useSnapshot } from "@/lib/data";
 import { addMonthsToDay, daysInMonth, today } from "@/lib/dates";
 import {
-  EXPENSE_TYPES, byCategory, distinct, emptyAdvanced, expenseRows, expenseSummary, expenseTypeLabel, filterExpenses,
-  type ExpenseRow, type QuickFilter,
+  BUSINESS_CATEGORIES, EXPENSE_TYPES, PAYMENT_METHODS, PAYROLL_CATEGORY, byCategory, expenseDescription, findCategoryByName, receiptError, splitCents, distinct, emptyAdvanced, expenseRows, expenseSummary, expenseTypeLabel, filterExpenses,
+  type ExpenseRow, type PaymentMethod, type QuickFilter,
 } from "@/lib/expenses";
 import { formatBRL, parseBRL } from "@/lib/money";
 import type { Category, ExpenseDetail, ExpenseType } from "@/lib/types";
 
 const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const NEW_SUPPLIER = "__novo__";
 const dateBR = (d: string) => d.split("-").reverse().join("/");
 type Advanced = typeof emptyAdvanced | { from: string; to: string; categoryId: string; employee: string; supplier: string; status: "all" | "paid" | "pending" };
 
@@ -100,11 +101,25 @@ export default function DespesasCompras() {
     </span>
   );
   const parcel = (r: ExpenseRow) => (r.installments && r.installments > 1 ? `${r.installment}/${r.installments}` : "—");
+  async function openReceipt(r: ExpenseRow) {
+    // Abre a aba antes de buscar o link, senão o navegador bloqueia o pop-up.
+    const w = window.open("", "_blank");
+    try {
+      const url = await repo.receiptUrl(r.receiptPath!);
+      if (url.startsWith("data:")) { w?.close(); const a = document.createElement("a"); a.href = url; a.download = "comprovante"; a.click(); }
+      else if (w) w.location.href = url; else window.location.href = url;
+    } catch (x) { w?.close(); toast(x instanceof Error ? x.message : "Não foi possível abrir o comprovante."); }
+  }
+
   const actions = (r: ExpenseRow, compact = false) => (
     <div className="flex items-center justify-end">
       {r.status !== "paid" && (
         <button type="button" onClick={() => void pay(r)} aria-label={`Pagar ${r.t.description}`}
           title="Pagar" className="inline-flex items-center gap-1 rounded-sm px-2 py-1.5 text-sm font-semibold text-success hover:bg-accent-soft"><Check aria-hidden className="size-4" />{!compact && "Pagar"}</button>
+      )}
+      {r.receiptPath && (
+        <button type="button" onClick={() => void openReceipt(r)} aria-label={`Ver comprovante de ${r.t.description}`} title="Comprovante"
+          className="rounded-sm p-2 text-text-muted hover:bg-surface hover:text-text"><Paperclip className="size-4" /></button>
       )}
       <button type="button" onClick={() => void remove(r)} aria-label={`Excluir ${r.t.description}`} className="rounded-sm p-2 text-text-muted hover:bg-danger-soft hover:text-danger"><Trash2 className="size-4" /></button>
     </div>
@@ -320,148 +335,248 @@ function ExpenseDialog({ details, onClose, onSaved }: { details: ExpenseDetail[]
   const snap = useSnapshot();
   const accounts = (snap?.accounts ?? []).filter((a) => !a.archived);
   const cards = (snap?.cards ?? []).filter((c) => !c.archived);
-  const [f, setF] = useState({
-    type: "despesa" as ExpenseType, description: "", value: "", day: today(), categoryId: "", supplier: "", employee: "",
-    source: accounts[0] ? `a:${accounts[0].id}` : cards[0] ? `c:${cards[0].id}` : "", paid: true, due: today(), n: 1,
-  });
-  const [err, setErr] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState(false);
-  const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => { setF((x) => ({ ...x, [k]: v })); setErr({}); };
-  const isCard = f.source.startsWith("c:");
-  const sourceId = f.source.slice(2);
-  const cents = parseBRL(f.value);
-  const splitting = (isCard || !f.paid) && f.n > 1;
+  const categories = snap?.categories ?? [];
+  const bizNames = new Set(BUSINESS_CATEGORIES.map((c) => c.name.toLowerCase()));
+  const ownCategories = expenseCategories(categories).filter((c) => !bizNames.has(c.name.toLowerCase()));
+  const catMap = new Map(categories.map((c) => [c.id, c]));
   const suppliers = distinct(details.map((d) => d.supplier));
   const employees = distinct(details.map((d) => d.employee));
+  const [f, setF] = useState({
+    type: "despesa" as "despesa" | "compra", day: today(), cat: "", supplier: suppliers.length ? "" : NEW_SUPPLIER, newSupplier: "", employee: "",
+    value: "", method: "pix" as PaymentMethod, accountId: accounts[0]?.id ?? "", cardId: cards[0]?.id ?? "",
+    split: false, n: 2, firstDue: addMonthsToDay(today(), 1), paid: false, notes: "",
+  });
+  const [file, setFile] = useState<File | null>(null);
+  const [err, setErr] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => { setF((x) => ({ ...x, [k]: v })); setErr({}); };
+  const isCard = f.method === "credito";
+  const cents = parseBRL(f.value);
+  const catName = f.cat.startsWith("biz:") ? f.cat.slice(4) : f.cat ? categoryName(catMap.get(f.cat.slice(4)), catMap) : "";
+  const payroll = f.cat === `biz:${PAYROLL_CATEGORY}` || (f.cat.startsWith("cat:") && catMap.get(f.cat.slice(4))?.name === PAYROLL_CATEGORY);
+  const supplier = f.supplier === NEW_SUPPLIER ? f.newSupplier.trim() : f.supplier;
+  const n = f.split ? f.n : 1;
+
+  function pickFile(list: FileList | null) {
+    const picked = list?.[0];
+    if (fileInput.current) fileInput.current.value = "";
+    if (!picked) return;
+    const e = receiptError(picked);
+    if (e) { setErr({ file: e }); return; }
+    setFile(picked); setErr({});
+  }
+
+  /** Categoria escolhida: as sugeridas são criadas na primeira vez. */
+  async function categoryId(): Promise<string | null> {
+    if (f.cat.startsWith("cat:")) return f.cat.slice(4);
+    const biz = BUSINESS_CATEGORIES.find((c) => `biz:${c.name}` === f.cat);
+    if (!biz) return null;
+    const found = findCategoryByName(categories, biz.name);
+    if (found) return found.id;
+    const created = await repo.upsertCategory({ name: biz.name, icon: biz.icon, kind: "expense", monthlyLimitCents: null, archived: false, color: null, parentId: null });
+    return created.id;
+  }
 
   async function save() {
     const e: Record<string, string> = {};
-    if (!f.description.trim()) e.description = "Descreva a despesa.";
-    if (!f.value.trim() || cents == null || cents <= 0) e.value = "Informe o valor.";
-    else if (splitting && cents < f.n) e.value = "Valor pequeno demais para dividir.";
     if (!f.day) e.day = "Informe a data.";
-    if (!f.source) e.source = "Cadastre uma conta ou um cartão primeiro.";
-    if (f.type === "folha" && !f.employee.trim()) e.employee = "Informe o funcionário.";
-    if (!isCard && !f.paid && !f.due) e.due = "Informe o vencimento.";
+    if (!f.cat) e.cat = "Escolha a categoria.";
+    if (!f.value.trim() || cents == null || cents <= 0) e.value = "Informe o valor.";
+    else if (cents < n) e.value = "Valor pequeno demais para dividir.";
+    if (isCard && !f.cardId) e.method = "Cadastre um cartão de crédito primeiro.";
+    if (!isCard && !f.accountId) e.method = "Cadastre uma conta primeiro.";
+    if (f.split && !isCard && !f.firstDue) e.firstDue = "Informe o vencimento.";
     setErr(e);
     if (Object.keys(e).length) return;
-    const common = { kind: "expense" as const, description: f.description.trim(), categoryId: f.categoryId || null };
-    const extra = { type: f.type, supplier: f.type === "folha" ? "" : f.supplier.trim(), employee: f.type === "folha" ? f.employee.trim() : "" };
     setBusy(true);
     try {
+      const receiptPath = file ? await repo.uploadReceipt(file) : null;
+      const common = { kind: "expense" as const, description: expenseDescription(catName, payroll ? f.employee : supplier), categoryId: await categoryId() };
+      const extra = {
+        type: (payroll ? "folha" : f.type) as ExpenseType, supplier: payroll ? "" : supplier, employee: payroll ? f.employee.trim() : "",
+        paymentMethod: f.method, notes: f.notes.trim(), receiptPath,
+      };
       let saved: ExpenseDetail[];
       let firstDay = f.day;
       if (isCard) {
-        const rows = await repo.createTransaction({ ...common, amountCents: cents!, occurredOn: f.day, cardId: sourceId, installments: f.n });
+        const rows = await repo.createTransaction({ ...common, amountCents: cents!, occurredOn: f.day, cardId: f.cardId, installments: n });
         saved = rows.map((t) => ({ transactionId: t.id, ...extra, groupId: null, installment: null, installments: null }));
-      } else if (f.paid) {
-        const rows = await repo.createTransaction({ ...common, amountCents: cents!, occurredOn: f.day, accountId: sourceId, isPaid: true });
-        saved = rows.map((t) => ({ transactionId: t.id, ...extra, groupId: null, installment: null, installments: null }));
-      } else {
-        // Boleto ou conta parcelada: uma despesa pendente por mês, vencendo no mesmo dia.
-        const groupId = f.n > 1 ? crypto.randomUUID() : null;
-        const parts = Array.from({ length: f.n }, (_, i) => Math.floor(cents! / f.n) + (i === 0 ? cents! - Math.floor(cents! / f.n) * f.n : 0));
+      } else if (f.split) {
+        // Boleto ou conta parcelada: uma despesa pendente por mês, a partir da 1ª parcela.
+        const groupId = crypto.randomUUID();
+        const parts = splitCents(cents!, n);
         saved = [];
-        for (let i = 0; i < f.n; i++) {
-          const due = addMonthsToDay(f.due, i);
-          const [t] = await repo.createTransaction({ ...common, amountCents: parts[i], occurredOn: due, dueOn: due, accountId: sourceId, isPaid: false });
-          saved.push({ transactionId: t.id, ...extra, groupId, installment: groupId ? i + 1 : null, installments: groupId ? f.n : null });
+        for (let i = 0; i < n; i++) {
+          const due = addMonthsToDay(f.firstDue, i);
+          const [t] = await repo.createTransaction({ ...common, amountCents: parts[i], occurredOn: due, dueOn: due, accountId: f.accountId, isPaid: false });
+          saved.push({ transactionId: t.id, ...extra, groupId, installment: i + 1, installments: n });
         }
-        firstDay = f.due;
+        firstDay = f.firstDue;
+      } else {
+        const rows = await repo.createTransaction({ ...common, amountCents: cents!, occurredOn: f.day, accountId: f.accountId, isPaid: f.paid, dueOn: f.paid ? undefined : f.day });
+        saved = rows.map((t) => ({ transactionId: t.id, ...extra, groupId: null, installment: null, installments: null }));
       }
       await repo.saveExpenseDetails(saved);
-      toast(saved.length > 1 ? `${saved.length} parcelas registradas` : `${expenseTypeLabel(f.type)} registrada`);
+      toast(saved.length > 1 ? `${saved.length} parcelas registradas` : `${expenseTypeLabel(extra.type)} registrada`);
       onSaved(saved, firstDay);
     } catch (x) { setErr({ form: x instanceof Error ? x.message : "Não foi possível registrar." }); }
     finally { setBusy(false); }
   }
 
+  const sw = (id: string, on: boolean, toggle: () => void, label: string) => (
+    <button id={id} type="button" role="switch" aria-checked={on} aria-label={label} onClick={toggle}
+      className="relative h-7 w-12 shrink-0 rounded-pill bg-border transition-colors aria-checked:bg-accent">
+      <span aria-hidden className={`absolute top-1 size-5 rounded-pill bg-white shadow-card transition-all ${on ? "left-6" : "left-1"}`} />
+    </button>
+  );
+
   return (
     <Dialog onClose={onClose} title={<h2 className="text-lg font-bold">Registrar Despesa</h2>}>
       <form onSubmit={(e) => { e.preventDefault(); void save(); }} noValidate className="flex flex-col gap-4">
-        <div role="radiogroup" aria-label="Tipo" className="grid grid-cols-3 gap-2">
-          {EXPENSE_TYPES.map((t) => (
-            <button key={t.id} type="button" role="radio" aria-checked={f.type === t.id} onClick={() => set("type", t.id)}
-              className="flex h-11 items-center justify-center gap-1.5 rounded-md border border-border text-sm font-medium hover:bg-surface aria-checked:border-accent aria-checked:bg-accent-soft aria-checked:font-semibold aria-checked:text-accent">
-              {TYPE_ICON[t.id]}{t.id === "folha" ? "Folha" : t.label}
-            </button>
-          ))}
+        <div className="flex flex-col gap-1">
+          <span id="ex-type-label" className="text-xs font-semibold text-text-muted">Tipo</span>
+          <div role="radiogroup" aria-labelledby="ex-type-label" className="grid grid-cols-2 gap-2">
+            {(["despesa", "compra"] as const).map((t) => (
+              <button key={t} type="button" role="radio" aria-checked={f.type === t} onClick={() => set("type", t)}
+                className="flex h-11 items-center justify-center gap-2 rounded-md border border-border text-sm font-medium hover:bg-surface aria-checked:border-accent aria-checked:bg-accent-soft aria-checked:font-semibold aria-checked:text-accent">
+                {t === "despesa" ? <Building2 aria-hidden className="size-4" /> : <Package aria-hidden className="size-4" />}{expenseTypeLabel(t)}
+              </button>
+            ))}
+          </div>
         </div>
-        <Field label="Descrição *" htmlFor="ex-desc" error={err.description}>
-          <Input id="ex-desc" autoFocus maxLength={200} placeholder={f.type === "compra" ? "Ex: Reposição de mercadorias" : f.type === "folha" ? "Ex: Salário de novembro" : "Ex: Aluguel da loja"}
-            value={f.description} onChange={(e) => set("description", e.target.value)} aria-invalid={!!err.description || undefined} />
-        </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label={splitting ? "Valor total *" : "Valor *"} htmlFor="ex-value" error={err.value}>
+          <Field label="Data *" htmlFor="ex-day" error={err.day}>
+            <Input id="ex-day" type="date" value={f.day} aria-invalid={!!err.day || undefined}
+              onChange={(e) => { const d = e.target.value; setF((x) => ({ ...x, day: d, firstDue: d ? addMonthsToDay(d, 1) : x.firstDue })); setErr({}); }} />
+          </Field>
+          <Field label="Categoria *" htmlFor="ex-cat" error={err.cat}>
+            <select id="ex-cat" value={f.cat} onChange={(e) => set("cat", e.target.value)} className={inputClass} aria-invalid={!!err.cat || undefined}>
+              <option value="" disabled>Selecione a categoria</option>
+              {BUSINESS_CATEGORIES.map((c) => <option key={c.name} value={`biz:${c.name}`}>{c.emoji} {c.name}</option>)}
+              {ownCategories.length > 0 && (
+                <optgroup label="Suas categorias">{ownCategories.map((c) => <option key={c.id} value={`cat:${c.id}`}>{c.name}</option>)}</optgroup>
+              )}
+            </select>
+          </Field>
+        </div>
+        {payroll ? (
+          <Field label="Funcionário" htmlFor="ex-emp" hint="Entra no card Folha">
+            <Input id="ex-emp" list="ex-emps" maxLength={120} autoComplete="off" placeholder="Nome do funcionário" value={f.employee} onChange={(e) => set("employee", e.target.value)} />
+            <datalist id="ex-emps">{employees.map((v) => <option key={v} value={v} />)}</datalist>
+          </Field>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <Field label="Fornecedor" htmlFor="ex-sup">
+              <select id="ex-sup" value={f.supplier} onChange={(e) => set("supplier", e.target.value)} className={inputClass}>
+                {suppliers.length > 0 && <option value="">Sem fornecedor</option>}
+                <option value={NEW_SUPPLIER}>＋ Novo fornecedor (digitar)</option>
+                {suppliers.map((v) => <option key={v} value={v}>{v}</option>)}
+              </select>
+            </Field>
+            {f.supplier === NEW_SUPPLIER && (
+              <Input aria-label="Nome do novo fornecedor" maxLength={120} autoComplete="off" placeholder="Digite o nome do fornecedor"
+                value={f.newSupplier} onChange={(e) => set("newSupplier", e.target.value)} />
+            )}
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={f.split ? "Valor Total *" : "Valor *"} htmlFor="ex-value" error={err.value}>
             <div className="relative">
               <span aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-text-muted">R$</span>
               <Input id="ex-value" inputMode="decimal" placeholder="0,00" className="num pl-10" value={f.value}
                 onChange={(e) => set("value", e.target.value.replace(/[^\d,.]/g, ""))} aria-invalid={!!err.value || undefined} />
             </div>
           </Field>
-          <Field label={isCard ? "Data da compra *" : "Data *"} htmlFor="ex-day" error={err.day}>
-            <Input id="ex-day" type="date" value={f.day} onChange={(e) => { set("day", e.target.value); if (f.due === f.day) set("due", e.target.value); }} />
+          <Field label="Forma de Pagamento" htmlFor="ex-method" error={err.method}>
+            <select id="ex-method" value={f.method} onChange={(e) => set("method", e.target.value as PaymentMethod)} className={inputClass} aria-invalid={!!err.method || undefined}>
+              {PAYMENT_METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+            </select>
           </Field>
         </div>
-        <Field label="Categoria" htmlFor="ex-cat">
-          <select id="ex-cat" value={f.categoryId} onChange={(e) => set("categoryId", e.target.value)} className={inputClass}>
-            <option value="">Sem categoria</option>
-            {expenseCategories(snap?.categories ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </Field>
-        {f.type === "folha" ? (
-          <Field label="Funcionário *" htmlFor="ex-emp" error={err.employee}>
-            <Input id="ex-emp" list="ex-emps" maxLength={120} autoComplete="off" placeholder="Nome do funcionário" value={f.employee} onChange={(e) => set("employee", e.target.value)} aria-invalid={!!err.employee || undefined} />
-            <datalist id="ex-emps">{employees.map((n) => <option key={n} value={n} />)}</datalist>
-          </Field>
-        ) : (
-          <Field label="Fornecedor" htmlFor="ex-sup" hint="Opcional">
-            <Input id="ex-sup" list="ex-sups" maxLength={120} autoComplete="off" placeholder="Ex: Atacadão, imobiliária, contador" value={f.supplier} onChange={(e) => set("supplier", e.target.value)} />
-            <datalist id="ex-sups">{suppliers.map((n) => <option key={n} value={n} />)}</datalist>
+        {isCard ? (
+          cards.length === 0 ? (
+            <p className="rounded-md bg-surface px-3 py-2 text-sm">Nenhum cartão de crédito cadastrado. <Link href="/cartoes" className="font-semibold text-accent underline">Cadastrar cartão</Link></p>
+          ) : cards.length > 1 && (
+            <Field label="Cartão" htmlFor="ex-card">
+              <select id="ex-card" value={f.cardId} onChange={(e) => set("cardId", e.target.value)} className={inputClass}>
+                {cards.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </Field>
+          )
+        ) : accounts.length === 0 ? (
+          <p className="rounded-md bg-surface px-3 py-2 text-sm">Nenhuma conta cadastrada. <Link href="/contas" className="font-semibold text-accent underline">Cadastrar conta</Link></p>
+        ) : accounts.length > 1 && (
+          <Field label={f.paid && !f.split ? "Pago com a conta" : "Conta"} htmlFor="ex-acc">
+            <select id="ex-acc" value={f.accountId} onChange={(e) => set("accountId", e.target.value)} className={inputClass}>
+              {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
           </Field>
         )}
-        <Field label="Pagar com *" htmlFor="ex-src" error={err.source}>
-          {accounts.length + cards.length === 0 ? (
-            <p className="rounded-md bg-surface px-3 py-2 text-sm">Nenhuma conta cadastrada. <Link href="/contas" className="font-semibold text-accent underline">Cadastrar conta</Link></p>
-          ) : (
-            <select id="ex-src" value={f.source} onChange={(e) => { set("source", e.target.value); set("n", 1); }} className={inputClass}>
-              {accounts.length > 0 && <optgroup label="Contas">{accounts.map((a) => <option key={a.id} value={`a:${a.id}`}>{a.name}</option>)}</optgroup>}
-              {cards.length > 0 && <optgroup label="Cartões de crédito">{cards.map((c) => <option key={c.id} value={`c:${c.id}`}>{c.name}</option>)}</optgroup>}
-            </select>
-          )}
-        </Field>
-        <div className="flex flex-col gap-3 rounded-lg bg-surface p-3">
-          {!isCard && (
-            <div className="flex items-center justify-between gap-3">
-              <label htmlFor="ex-paid" className="text-sm font-medium">Já foi pago</label>
-              <button id="ex-paid" type="button" role="switch" aria-checked={f.paid} onClick={() => { set("paid", !f.paid); set("n", 1); }}
-                className="relative h-7 w-12 shrink-0 rounded-pill bg-border transition-colors aria-checked:bg-accent">
-                <span aria-hidden className={`absolute top-1 size-5 rounded-pill bg-white shadow-card transition-all ${f.paid ? "left-6" : "left-1"}`} />
-              </button>
-            </div>
-          )}
-          {(isCard || !f.paid) && (
-            <div className="grid grid-cols-2 gap-3">
+
+        <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
+          <div className="flex items-center justify-between gap-3">
+            <label htmlFor="ex-split" className="flex items-center gap-2 text-sm font-semibold"><Layers aria-hidden className="size-4 text-accent" />Compra Parcelada</label>
+            {sw("ex-split", f.split, () => set("split", !f.split), "Compra Parcelada")}
+          </div>
+          {f.split && (
+            <div className={`grid gap-3 ${isCard ? "" : "sm:grid-cols-2"}`}>
+              <Field label="Número de Parcelas" htmlFor="ex-n">
+                <div className="flex items-center gap-2">
+                  <button type="button" aria-label="Menos uma parcela" disabled={f.n <= 2} onClick={() => set("n", Math.max(2, f.n - 1))}
+                    className="grid size-11 shrink-0 place-items-center rounded-md border border-border hover:bg-surface disabled:opacity-40"><Minus aria-hidden className="size-4" /></button>
+                  <Input id="ex-n" type="number" inputMode="numeric" min={2} max={48} className="num text-center" value={f.n}
+                    onChange={(e) => set("n", Math.min(48, Math.max(2, Math.round(Number(e.target.value) || 2))))} />
+                  <button type="button" aria-label="Mais uma parcela" disabled={f.n >= 48} onClick={() => set("n", Math.min(48, f.n + 1))}
+                    className="grid size-11 shrink-0 place-items-center rounded-md border border-border hover:bg-surface disabled:opacity-40"><Plus aria-hidden className="size-4" /></button>
+                </div>
+              </Field>
               {!isCard && (
-                <Field label={f.n > 1 ? "1º vencimento *" : "Vencimento *"} htmlFor="ex-due" error={err.due}>
-                  <Input id="ex-due" type="date" value={f.due} onChange={(e) => set("due", e.target.value)} />
+                <Field label="1ª Parcela Vence em *" htmlFor="ex-first" error={err.firstDue}>
+                  <Input id="ex-first" type="date" value={f.firstDue} onChange={(e) => set("firstDue", e.target.value)} aria-invalid={!!err.firstDue || undefined} />
                 </Field>
               )}
-              <Field label="Parcelas" htmlFor="ex-n">
-                <select id="ex-n" value={f.n} onChange={(e) => set("n", Number(e.target.value))} className={inputClass}>
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map((k) => <option key={k} value={k}>{k === 1 ? "À vista" : `${k}x`}</option>)}
-                </select>
-              </Field>
+              <p className="text-xs text-text-muted sm:col-span-2">
+                {cents ? <>{f.n}x de <strong className="num text-text">{formatBRL(Math.floor(cents / f.n))}</strong>. </> : null}
+                {isCard ? "Cada parcela vai para a fatura do mês." : "Cada parcela fica pendente até você tocar em Pagar."}
+              </p>
             </div>
           )}
-          <p className="text-xs text-text-muted">
-            {isCard ? "No cartão a despesa entra paga e cada parcela vai para a fatura do mês."
-              : f.paid ? "Sai da conta na data informada." : "Fica pendente até você tocar em Pagar."}
-            {splitting && cents ? <> Valor por parcela: <strong className="num text-text">{formatBRL(Math.floor(cents / f.n))}</strong>.</> : null}
-          </p>
+        </div>
+        {!f.split && !isCard && (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+            <label htmlFor="ex-paid" className="text-sm font-semibold">Já está pago?</label>
+            {sw("ex-paid", f.paid, () => set("paid", !f.paid), "Já está pago?")}
+          </div>
+        )}
+
+        <Field label="Histórico (opcional)" htmlFor="ex-notes">
+          <textarea id="ex-notes" rows={3} maxLength={1000} placeholder="Ex: NF 12345, competência 01/2026, contrato nº 789..."
+            value={f.notes} onChange={(e) => set("notes", e.target.value)} className={`${inputClass} h-auto resize-y py-2`} />
+        </Field>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-semibold text-text-muted">Comprovante (opcional)</span>
+          <input ref={fileInput} id="ex-file" type="file" accept="application/pdf,image/jpeg,image/png" className="sr-only" onChange={(e) => pickFile(e.target.files)} />
+          {file ? (
+            <div className="flex items-center gap-3 rounded-lg border border-border px-3 py-2.5">
+              <FileText aria-hidden className="size-5 shrink-0 text-accent" />
+              <span className="min-w-0 flex-1 truncate text-sm">{file.name}</span>
+              <span className="num shrink-0 text-xs text-text-muted">{file.size < 1024 * 1024 ? `${Math.max(1, Math.round(file.size / 1024))} KB` : `${(file.size / 1024 / 1024).toFixed(1).replace(".", ",")} MB`}</span>
+              <button type="button" onClick={() => setFile(null)} aria-label="Remover comprovante" className="rounded-sm p-1 text-text-muted hover:bg-surface hover:text-text"><X className="size-4" /></button>
+            </div>
+          ) : (
+            <label htmlFor="ex-file"
+              onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); pickFile(e.dataTransfer.files); }}
+              className="flex cursor-pointer flex-col items-center gap-1 rounded-lg border-2 border-dashed border-border px-3 py-5 text-center hover:bg-surface">
+              <CloudUpload aria-hidden className="size-6 text-text-muted" />
+              <span className="text-sm font-medium">Clique para fazer upload</span>
+              <span className="text-xs text-text-muted">PDF, JPG ou PNG até 5MB</span>
+            </label>
+          )}
+          {err.file && <p className="text-xs text-danger">{err.file}</p>}
         </div>
         {err.form && <p role="alert" className="text-sm text-danger">{err.form}</p>}
-        <Button type="submit" size="lg" loading={busy} className="w-full rounded-pill">{splitting ? `Registrar ${f.n} Parcelas` : "Registrar Despesa"}</Button>
+        <Button type="submit" size="lg" loading={busy} className="w-full rounded-pill">{f.split ? `Criar ${f.n} Parcelas` : "Registrar Despesa"}</Button>
       </form>
     </Dialog>
   );

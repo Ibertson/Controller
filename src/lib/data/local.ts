@@ -178,6 +178,16 @@ export class LocalRepo implements Repo {
     for (const d of items) byId.set(d.transactionId, d);
     this.putWsList(EXPENSES_KEY, [...byId.values()]);
   }
+  async uploadReceipt(file: File) {
+    // Sem servidor: o arquivo fica junto da despesa, neste aparelho.
+    return await new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = () => reject(new Error("Não foi possível ler o arquivo."));
+      r.readAsDataURL(file);
+    });
+  }
+  async receiptUrl(path: string) { return path; }
   async listClients() { return this.wsList<BusinessClient>(CLIENTS_KEY); }
   async saveClient(c: BusinessClient) {
     const list = await this.listClients();
