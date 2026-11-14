@@ -1,4 +1,4 @@
-import type { Account, Activity, CashRegister, BusinessClient, ExpenseDetail, Receivable, Card, Category, Company, Workspace, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, Transaction } from "../types";
+import type { Account, Activity, CashRegister, Order, BusinessClient, ExpenseDetail, Receivable, Card, Category, Company, Workspace, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, Transaction } from "../types";
 import type { MoveInput } from "../stock";
 import type { BioPage } from "../bio";
 import type { SyncStatus } from "./outbox";
@@ -95,6 +95,9 @@ export interface Repo {
   deleteReceivable(id: string): Promise<void>;
 
   /** Atividades da agenda do espaço atual (vencimento mais próximo primeiro). */
+  listOrders(): Promise<Order[]>;
+  saveOrder(o: Order): Promise<void>;
+  deleteOrder(id: string): Promise<void>;
   /** Caixa Diário: um caixa por dia, com reforços e sangrias. */
   listCashRegisters(): Promise<CashRegister[]>;
   saveCashRegister(r: CashRegister): Promise<void>;

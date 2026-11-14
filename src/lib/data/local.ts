@@ -1,7 +1,7 @@
 "use client";
 
 import { buildTransactions } from "../transactions";
-import type { Activity, CashRegister, BusinessClient, ExpenseDetail, Receivable, Company, GoalContribution, Product, Quote, Service, StockMovement, Profile, Snapshot, WorkspaceKind } from "../types";
+import type { Activity, CashRegister, Order, BusinessClient, ExpenseDetail, Receivable, Company, GoalContribution, Product, Quote, Service, StockMovement, Profile, Snapshot, WorkspaceKind } from "../types";
 import { applyMovement, type MoveInput } from "../stock";
 import { today } from "../dates";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
@@ -33,6 +33,7 @@ const QUOTES_KEY = "sobra:quotes";
 const MOVES_KEY = "sobra:stock";
 const ACTIVITIES_KEY = "sobra:activities";
 const CASH_KEY = "sobra:caixa";
+const ORDERS_KEY = "sobra:orders";
 const CLIENTS_KEY = "sobra:clients";
 const EXPENSES_KEY = "sobra:expenses";
 const RECEIVABLES_KEY = "sobra:receivables";
@@ -189,6 +190,13 @@ export class LocalRepo implements Repo {
     });
   }
   async receiptUrl(path: string) { return path; }
+  async listOrders() { return this.wsList<Order>(ORDERS_KEY); }
+  async saveOrder(o: Order) {
+    const list = await this.listOrders();
+    if (list.some((x) => x.number === o.number && x.id !== o.id)) throw new Error("Esse número de pedido já existe.");
+    this.putWsList(ORDERS_KEY, list.some((x) => x.id === o.id) ? list.map((x) => (x.id === o.id ? o : x)) : [...list, o]);
+  }
+  async deleteOrder(id: string) { this.putWsList(ORDERS_KEY, (await this.listOrders()).filter((x) => x.id !== id)); }
   async listCashRegisters() { return this.wsList<CashRegister>(CASH_KEY); }
   async saveCashRegister(r: CashRegister) {
     const list = await this.listCashRegisters();

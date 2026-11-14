@@ -2,7 +2,7 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildTransactions } from "../transactions";
-import type { Account, Activity, CashMovement, CashRegister, ActivityStatus, BusinessClient, ExpenseDetail, ExpenseType, ClientKind, Receivable, Card, Category, Company, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
+import type { Account, Activity, CashMovement, CashRegister, Order, OrderItem, OrderStatus, ActivityStatus, BusinessClient, ExpenseDetail, ExpenseType, ClientKind, Receivable, Card, Category, Company, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
 import type { MoveInput } from "../stock";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import { Outbox, browserStore, isNetworkFailure, type Op, type RunResult, type SyncStatus } from "./outbox";
@@ -565,6 +565,32 @@ export class SupabaseRepo implements Repo {
   async deleteReceivable(id: string) {
     if (!online()) throw new Error(OFFLINE_MSG);
     must(await this.db.from("receivables").delete().eq("id", id));
+  }
+
+  async listOrders() {
+    if (!this.data) throw new Error("não autenticado");
+    const rows = must(await this.db.from("orders").select("*").eq("workspace_id", this.data.workspace.id).order("number")) as Row[];
+    return rows.map((r): Order => ({
+      id: r.id as string, number: Number(r.number), clientId: (r.client_id as string | null) ?? null, clientName: r.client_name as string,
+      orderedOn: r.ordered_on as string, deliveryOn: (r.delivery_on as string | null) ?? null, notes: r.notes as string,
+      items: (r.items as OrderItem[] | null) ?? [], discountCents: Number(r.discount_cents), status: r.status as OrderStatus, createdAt: r.created_at as string,
+    }));
+  }
+
+  async saveOrder(o: Order) {
+    if (!this.data) throw new Error("não autenticado");
+    if (!online()) throw new Error(OFFLINE_MSG);
+    const { error } = await this.db.from("orders").upsert({
+      id: o.id, workspace_id: this.data.workspace.id, number: o.number, client_id: o.clientId, client_name: o.clientName,
+      ordered_on: o.orderedOn, delivery_on: o.deliveryOn, notes: o.notes, items: o.items, discount_cents: o.discountCents, status: o.status, created_at: o.createdAt,
+    });
+    if (error?.code === "23505") throw new Error("Esse número de pedido já existe. Tente salvar de novo.");
+    if (error) throw new Error(error.message);
+  }
+
+  async deleteOrder(id: string) {
+    if (!online()) throw new Error(OFFLINE_MSG);
+    must(await this.db.from("orders").delete().eq("id", id));
   }
 
   async listCashRegisters() {
