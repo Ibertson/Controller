@@ -20,7 +20,8 @@ export function Empty({ children }: { children: string }) {
 interface LineSeries { label: string; color: string; values: number[]; }
 
 /** Linhas por mês. Linhas em SVG esticado; textos e pontos em HTML para não distorcer. Aceita valores negativos. */
-export function LineChart({ months, series, label, format = compactBRL }: { months: string[]; series: LineSeries[]; label: string; format?: (v: number) => string }) {
+/** `shadeFrom`: índice do primeiro mês projetado; a área dele em diante fica sombreada. */
+export function LineChart({ months, series, label, format = compactBRL, shadeFrom }: { months: string[]; series: LineSeries[]; label: string; format?: (v: number) => string; shadeFrom?: number }) {
   const all = series.flatMap((s) => s.values);
   const max = Math.max(1, ...all);
   const min = Math.min(0, ...all);
@@ -37,6 +38,10 @@ export function LineChart({ months, series, label, format = compactBRL }: { mont
           ))}
         </div>
         <div className="relative h-48 border-b border-l border-border">
+          {shadeFrom != null && shadeFrom < months.length && (
+            <div className="absolute inset-y-0 right-0 bg-surface" style={{ left: `${shadeFrom === 0 ? 0 : (x(shadeFrom - 1) + x(shadeFrom)) / 2}%` }}>
+            </div>
+          )}
           {ticks.map((v) => <div key={v} className="absolute inset-x-0 border-t border-dashed border-border" style={{ top: `${y(v)}%` }} />)}
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible">
             {series.map((s) => (
@@ -52,15 +57,18 @@ export function LineChart({ months, series, label, format = compactBRL }: { mont
         <span />
         <div className="relative mt-1.5 h-4 text-[11px] text-text-muted">
           {months.map((m, i) => (
-            <span key={m} className={`absolute top-0 ${i === 0 ? "" : i === months.length - 1 ? "-translate-x-full" : "-translate-x-1/2"}`}
+            <span key={m} className={`absolute top-0 ${i === 0 ? "" : i === months.length - 1 ? "-translate-x-full" : "-translate-x-1/2"} ${months.length > 8 && i % 2 === 1 ? "hidden sm:inline" : ""}`}
               style={{ left: `${x(i)}%` }}>{shortMonth(m)}</span>
           ))}
         </div>
       </div>
-      <figcaption className="mt-3 flex gap-4 text-xs text-text-muted">
+      <figcaption className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted">
         {series.map((s) => (
           <span key={s.label} className="flex items-center gap-1.5"><span className="size-2.5 rounded-pill" style={{ background: s.color }} />{s.label}</span>
         ))}
+        {shadeFrom != null && shadeFrom < months.length && (
+          <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm border border-border bg-surface" />Projeção</span>
+        )}
       </figcaption>
     </figure>
   );
@@ -126,7 +134,7 @@ export function Bars({ slices, color = "var(--color-income)" }: { slices: Slice[
 interface BarGroup { label: string; values: number[]; }
 
 /** Barras verticais agrupadas (uma cor por série); aceita valores negativos. */
-export function GroupedBars({ groups, series, label }: { groups: BarGroup[]; series: { label: string; color: string }[]; label: string }) {
+export function GroupedBars({ groups, series, label, compact }: { groups: BarGroup[]; series: { label: string; color: string }[]; label: string; compact?: boolean }) {
   const all = groups.flatMap((g) => g.values);
   const max = Math.max(1, ...all);
   const min = Math.min(0, ...all);
@@ -141,7 +149,7 @@ export function GroupedBars({ groups, series, label }: { groups: BarGroup[]; ser
         <div className="relative flex h-48 border-b border-l border-border">
           {ticks.map((v) => <div key={v} className="absolute inset-x-0 border-t border-dashed border-border" style={{ top: `${y(v)}%` }} />)}
           {groups.map((g) => (
-            <div key={g.label} className="relative flex flex-1 justify-center gap-1.5 px-2">
+            <div key={g.label} className={`relative flex min-w-0 flex-1 justify-center ${compact ? "gap-px px-px sm:gap-0.5 sm:px-1" : "gap-1.5 px-2"}`}>
               {g.values.map((v, i) => (
                 <div key={series[i].label} className="relative h-full w-full max-w-12">
                   <span className="absolute inset-x-0 rounded-sm" title={`${series[i].label}: ${formatBRL(v)}`}
@@ -153,7 +161,7 @@ export function GroupedBars({ groups, series, label }: { groups: BarGroup[]; ser
         </div>
         <span />
         <div className="mt-1.5 flex text-[11px] text-text-muted">
-          {groups.map((g) => <span key={g.label} className="flex-1 text-center">{g.label}</span>)}
+          {groups.map((g) => <span key={g.label} className="min-w-0 flex-1 truncate text-center">{g.label}</span>)}
         </div>
       </div>
       <figcaption className="mt-3 flex justify-center gap-4 text-xs text-text-muted">
