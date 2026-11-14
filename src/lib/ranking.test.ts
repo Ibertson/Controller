@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { monthDates, productRanking, rangeDates, rankBy } from "./ranking";
-import type { Order, Product } from "./types";
+import type { Order, PosSale, Product } from "./types";
 
 const prod = (id: string, name: string, costCents: number) => ({ id, name, costCents }) as Product;
 const item = (productId: string | null, qty: number, unitCents: number, name = "x") => ({ id: Math.random().toString(), productId, serviceId: null, name, description: "", qty, unitCents });
@@ -34,5 +34,9 @@ describe("Ranking de produtos", () => {
     expect(rankBy(r.items, "qty").map((i) => i.key)).toEqual(["a", "gone", "b"]);
     expect(rankBy(r.items, "revenueCents").map((i) => i.key)).toEqual(["a", "gone", "b"]);
     expect(bolo.share).toBe(78.2);
+    const sale = { id: "v1", number: 1, soldOn: "2026-11-14", items: [{ productId: "a", name: "Bolo", qty: 2, unitCents: 5000 }], discountCents: 0, totalCents: 10000, paymentMethod: "pix", receivedCents: null, clientId: null, clientName: "", accountId: null, transactionId: null, status: "concluida", createdAt: "" } as PosSale;
+    const withSales = productRanking(orders, products, "2026-10-15", "2026-11-14", [sale, { ...sale, id: "v2", number: 2, status: "cancelada" }]);
+    expect(withSales.items.find((i) => i.key === "a")).toMatchObject({ qty: 5, revenueCents: 24048 });
+    expect(withSales.orders).toBe(4);
   });
 });

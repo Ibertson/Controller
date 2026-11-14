@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Building2, CalendarDays, DollarSign, Package, Percent, TrendingUp, Trophy, type LucideIcon } from "lucide-react";
 import { useSpace } from "@/components/business";
 import { useOrders } from "@/components/orders";
 import { Card, Skeleton } from "@/components/ui";
+import { repo, useSnapshot } from "@/lib/data";
 import { today } from "@/lib/dates";
 import { formatBRL } from "@/lib/money";
+import type { PosSale } from "@/lib/types";
 import { RANGES, monthDates, productRanking, rangeDates, rankBy, type ProductRank, type RangeKey, type RankBy } from "@/lib/ranking";
 
 const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -18,10 +20,24 @@ const pct = (n: number | null) => (n == null ? "—" : `${n.toLocaleString("pt-B
 const units = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
 const MEDAL = ["bg-chart-3/20 text-chart-3", "bg-chart-6/20 text-chart-6", "bg-chart-5/15 text-chart-5"];
 
+/** Vendas do Ponto de Venda do espaço aberto (vazio se não carregar). */
+function useSales() {
+  const wsId = useSnapshot()?.workspace.id;
+  const [state, setState] = useState<{ ws?: string; list: PosSale[] }>({ list: [] });
+  useEffect(() => {
+    if (!wsId) return;
+    let alive = true;
+    repo.listSales().then((list) => { if (alive) setState({ ws: wsId, list }); }).catch(() => { if (alive) setState({ ws: wsId, list: [] }); });
+    return () => { alive = false; };
+  }, [wsId]);
+  return state.ws === wsId ? state.list : [];
+}
+
 /** Ranking de Produtos: o que mais vende, mais fatura e mais dá lucro nos pedidos do período. */
 export default function RankingProdutos() {
   const { kind, company } = useSpace();
   const { data, error } = useOrders();
+  const sales = useSales();
   const now = today();
   const [range, setRange] = useState<RangeKey>("30");
   const [month, setMonth] = useState<string | null>(null);
@@ -40,7 +56,7 @@ export default function RankingProdutos() {
 
   const { from, to } = month ? monthDates(month) : rangeDates(range, now);
   const title = month ? `${MONTHS[Number(month.slice(5)) - 1]} de ${month.slice(0, 4)}` : RANGES.find((r) => r.key === range)!.title;
-  const r = productRanking(data.orders, data.products, from, to);
+  const r = productRanking(data.orders, data.products, from, to, sales);
   const ranked = rankBy(r.items, tab);
   const top = ranked.slice(0, TOP);
   const max = Math.max(1, ...top.map((i) => Math.abs(i[tab])));
@@ -123,7 +139,7 @@ export default function RankingProdutos() {
 
       <Card>
         <h2 className="mb-1 font-semibold">Detalhamento por Produto</h2>
-        <p className="mb-3 text-xs text-text-muted">Vendas dos Pedidos do período (cancelados não contam). O desconto do pedido é dividido entre os itens e o custo é o cadastrado no produto hoje.</p>
+        <p className="mb-3 text-xs text-text-muted">Vendas dos Pedidos e do Ponto de Venda no período (cancelados não contam). O desconto do pedido é dividido entre os itens e o custo é o cadastrado no produto hoje.</p>
         {ranked.length === 0 ? <p className="py-6 text-center text-sm text-text-muted">Nenhum dado disponível</p> : <>
           <div className="-mx-4 hidden overflow-x-auto px-4 md:block">
             <table className="w-full min-w-[720px] text-sm">

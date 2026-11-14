@@ -69,7 +69,7 @@ const businessNav: NavGroup[] = [
   { group: "Painel", items: [{ href: "/", label: "Painel Empresarial", icon: LayoutDashboard }] },
   { group: "Marketing", items: [{ href: "/empresa/link-bio", label: "Link Bio", icon: Link2 }] },
   { group: "Operacional", items: [
-    { href: mod("ponto-de-venda"), label: "Ponto de Venda", icon: Store },
+    { href: "/empresa/ponto-de-venda", label: "Ponto de Venda", icon: Store },
     { href: "/empresa/caixa", label: "Caixa Diário", icon: Wallet },
     { href: "/empresa/estoque", label: "Estoque", icon: Boxes },
   ] },
@@ -266,7 +266,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   // No painel o mês é escolhido nos botões de mês da própria página.
   const showMonth = ["/extrato", "/categorias", "/fechamento"].includes(path);
   // Lembretes, Link Bio e o cadastro de produto não são lançamentos, então o botão de lançamento sai do topo e do celular.
-  const showNew = !path.startsWith("/lembretes") && !path.startsWith("/empresa/link-bio") && !path.startsWith("/empresa/produtos/produto") && !path.startsWith("/empresa/servicos/servico") && !path.startsWith("/empresa/orcamentos") && !path.startsWith("/empresa/atividades") && !path.startsWith("/empresa/clientes") && !path.startsWith("/empresa/despesas") && !path.startsWith("/empresa/caixa") && !path.startsWith("/empresa/pedidos") && !path.startsWith("/empresa/pro-labore") && !path.startsWith("/empresa/metricas") && !path.startsWith("/empresa/analytics") && !path.startsWith("/empresa/ranking-produtos") && !path.startsWith("/empresa/relatorios");
+  const showNew = !path.startsWith("/lembretes") && !path.startsWith("/empresa/link-bio") && !path.startsWith("/empresa/produtos/produto") && !path.startsWith("/empresa/servicos/servico") && !path.startsWith("/empresa/orcamentos") && !path.startsWith("/empresa/atividades") && !path.startsWith("/empresa/clientes") && !path.startsWith("/empresa/despesas") && !path.startsWith("/empresa/caixa") && !path.startsWith("/empresa/pedidos") && !path.startsWith("/empresa/pro-labore") && !path.startsWith("/empresa/metricas") && !path.startsWith("/empresa/analytics") && !path.startsWith("/empresa/ranking-produtos") && !path.startsWith("/empresa/relatorios") && !path.startsWith("/empresa/ponto-de-venda");
 
   return (
     <ShellCtx.Provider value={{ month, setMonth, openNew, toast }}>

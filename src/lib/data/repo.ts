@@ -1,4 +1,4 @@
-import type { Account, Activity, CashRegister, Order, ProLaboreWithdrawal, BusinessClient, ExpenseDetail, Receivable, Card, Category, Company, Workspace, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, Transaction } from "../types";
+import type { Account, Activity, CashRegister, Order, PosSale, ProLaboreWithdrawal, BusinessClient, ExpenseDetail, Receivable, Card, Category, Company, Workspace, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, Transaction } from "../types";
 import type { MoveInput } from "../stock";
 import type { BioPage } from "../bio";
 import type { SyncStatus } from "./outbox";
@@ -109,6 +109,9 @@ export interface Repo {
   listOrders(): Promise<Order[]>;
   saveOrder(o: Order): Promise<void>;
   deleteOrder(id: string): Promise<void>;
+  /** Vendas do Ponto de Venda (inclui as canceladas). */
+  listSales(): Promise<PosSale[]>;
+  saveSale(s: PosSale): Promise<void>;
   /** Caixa Diário: um caixa por dia, com reforços e sangrias. */
   listCashRegisters(): Promise<CashRegister[]>;
   saveCashRegister(r: CashRegister): Promise<void>;
