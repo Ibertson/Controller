@@ -15,6 +15,7 @@ export interface ExpenseRow {
   installment: number | null; installments: number | null;
   /** Vencimento (pendente) ou data do pagamento (pago). */
   due: string; status: ExpenseStatus;
+  paymentMethod: string; notes: string; receiptPath: string | null;
 }
 
 /** Despesas ativas do espaço com os dados extras (lançamentos feitos em outras telas entram como "Despesa"). */
@@ -27,6 +28,7 @@ export function expenseRows(transactions: Transaction[], details: ExpenseDetail[
       t, type: d?.type ?? "despesa", supplier: d?.supplier ?? "", employee: d?.employee ?? "",
       installment: t.installmentNumber ?? d?.installment ?? null, installments: t.installmentTotal ?? d?.installments ?? null,
       due, status: t.isPaid ? "paid" : due < todayStr ? "overdue" : "pending",
+      paymentMethod: d?.paymentMethod ?? "", notes: d?.notes ?? "", receiptPath: d?.receiptPath ?? null,
     };
   }).sort((a, b) => b.t.occurredOn.localeCompare(a.t.occurredOn) || b.t.createdAt.localeCompare(a.t.createdAt));
 }
@@ -91,3 +93,53 @@ export function byCategory(rows: ExpenseRow[], categories: Category[]): { id: st
 
 /** Valores distintos (fornecedores, funcionários) em ordem alfabética. */
 export const distinct = (values: string[]) => [...new Set(values.map((v) => v.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+/** Categorias sugeridas no Registrar Despesa (criadas na primeira vez que forem usadas). */
+export const BUSINESS_CATEGORIES: { name: string; emoji: string; icon: string }[] = [
+  { name: "Mercadorias", emoji: "🛒", icon: "shopping-cart" },
+  { name: "Embalagens", emoji: "📦", icon: "shopping-bag" },
+  { name: "Aluguel", emoji: "🏠", icon: "house" },
+  { name: "Energia", emoji: "💡", icon: "lightbulb" },
+  { name: "Água", emoji: "💧", icon: "droplet" },
+  { name: "Internet", emoji: "🌐", icon: "wifi" },
+  { name: "Funcionários", emoji: "👥", icon: "users" },
+  { name: "Impostos", emoji: "🧾", icon: "percent" },
+  { name: "Marketing", emoji: "📣", icon: "share-2" },
+  { name: "Manutenção", emoji: "🔧", icon: "wrench" },
+  { name: "Software", emoji: "💻", icon: "tv" },
+  { name: "Transporte", emoji: "🚚", icon: "truck" },
+];
+export const PAYROLL_CATEGORY = "Funcionários";
+
+export const PAYMENT_METHODS = [
+  { id: "pix", label: "PIX" }, { id: "dinheiro", label: "Dinheiro" }, { id: "debito", label: "Cartão de débito" },
+  { id: "credito", label: "Cartão de crédito" }, { id: "boleto", label: "Boleto" }, { id: "transferencia", label: "Transferência" },
+] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number]["id"];
+export const paymentMethodLabel = (id: string) => PAYMENT_METHODS.find((m) => m.id === id)?.label ?? "";
+
+const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
+/** Categoria de despesa já existente com esse nome (sem diferenciar acento e maiúscula). */
+export function findCategoryByName(categories: Category[], name: string): Category | undefined {
+  return categories.find((c) => !c.archived && c.kind !== "income" && norm(c.name) === norm(name));
+}
+
+/** Divide o total em n parcelas; os centavos que sobram vão na primeira. */
+export function splitCents(total: number, n: number): number[] {
+  const base = Math.floor(total / n);
+  return Array.from({ length: n }, (_, i) => base + (i === 0 ? total - base * n : 0));
+}
+
+/** Texto do lançamento: categoria e fornecedor ("Aluguel · Imobiliária Sol"). */
+export function expenseDescription(category: string, supplier: string): string {
+  return [category.trim(), supplier.trim()].filter(Boolean).join(" · ") || "Despesa";
+}
+
+export const RECEIPT_TYPES = ["application/pdf", "image/jpeg", "image/png"];
+export const RECEIPT_MAX_BYTES = 5 * 1024 * 1024;
+/** Erro do comprovante, ou null se ele pode ser enviado. */
+export function receiptError(file: { type: string; size: number }): string | null {
+  if (!RECEIPT_TYPES.includes(file.type)) return "Envie um PDF, JPG ou PNG.";
+  if (file.size > RECEIPT_MAX_BYTES) return "O arquivo passa de 5MB.";
+  return null;
+}

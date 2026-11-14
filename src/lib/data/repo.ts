@@ -77,6 +77,10 @@ export interface Repo {
   /** Tipo, fornecedor e funcionário das despesas da empresa. */
   listExpenseDetails(): Promise<ExpenseDetail[]>;
   saveExpenseDetails(list: ExpenseDetail[]): Promise<void>;
+  /** Guarda o comprovante (PDF, JPG ou PNG até 5MB) e devolve o caminho para salvar na despesa. */
+  uploadReceipt(file: File): Promise<string>;
+  /** Link temporário para abrir o comprovante. */
+  receiptUrl(path: string): Promise<string>;
 
   /** Clientes da empresa (inclui os da lixeira, com deletedAt). */
   listClients(): Promise<BusinessClient[]>;

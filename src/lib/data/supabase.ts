@@ -486,6 +486,7 @@ export class SupabaseRepo implements Repo {
     return rows.map((r): ExpenseDetail => ({
       transactionId: r.transaction_id as string, type: r.type as ExpenseType, supplier: r.supplier as string, employee: r.employee as string,
       groupId: (r.group_id as string | null) ?? null, installment: r.installment == null ? null : Number(r.installment), installments: r.installments == null ? null : Number(r.installments),
+      paymentMethod: (r.payment_method as string) ?? "", notes: (r.notes as string) ?? "", receiptPath: (r.receipt_path as string | null) ?? null,
     }));
   }
 
@@ -497,7 +498,24 @@ export class SupabaseRepo implements Repo {
     must(await this.db.from("expense_details").upsert(list.map((d) => ({
       transaction_id: d.transactionId, workspace_id: ws, type: d.type, supplier: d.supplier, employee: d.employee,
       group_id: d.groupId, installment: d.installment, installments: d.installments,
+      payment_method: d.paymentMethod ?? "", notes: d.notes ?? "", receipt_path: d.receiptPath ?? null,
     }))));
+  }
+
+  async uploadReceipt(file: File) {
+    if (!this.data) throw new Error("não autenticado");
+    if (!online()) throw new Error(OFFLINE_MSG);
+    const ext = file.type === "application/pdf" ? "pdf" : file.type === "image/png" ? "png" : "jpg";
+    const path = `${this.data.workspace.id}/${crypto.randomUUID()}.${ext}`;
+    const { error } = await this.db.storage.from("receipts").upload(path, file, { contentType: file.type, upsert: false });
+    if (error) throw new Error("Não foi possível enviar o comprovante.");
+    return path;
+  }
+
+  async receiptUrl(path: string) {
+    const { data, error } = await this.db.storage.from("receipts").createSignedUrl(path, 300);
+    if (error || !data) throw new Error("Não foi possível abrir o comprovante.");
+    return data.signedUrl;
   }
 
   async listClients() {

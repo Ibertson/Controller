@@ -62,6 +62,12 @@ export interface ExpenseDetail {
   transactionId: ID; type: ExpenseType; supplier: string; employee: string;
   /** Parcelas de boleto/conta (não cartão): mesmo grupo, número e total. */
   groupId: string | null; installment: number | null; installments: number | null;
+  /** Forma de pagamento (pix, dinheiro, debito, credito, boleto, transferencia); vazio nos antigos. */
+  paymentMethod?: string;
+  /** Histórico: NF, competência, contrato. */
+  notes?: string;
+  /** Comprovante no armazenamento (bucket receipts) ou, no modo local, data URL. */
+  receiptPath?: string | null;
 }
 export type ClientKind = "eventual" | "recorrente";
 /** Cliente da empresa (aba Clientes & Recebíveis). */
