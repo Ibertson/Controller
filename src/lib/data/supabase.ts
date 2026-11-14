@@ -2,7 +2,7 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildTransactions } from "../transactions";
-import type { Account, Activity, CashMovement, CashRegister, Order, ProLaboreWithdrawal, OrderItem, OrderStatus, ActivityStatus, BusinessClient, ExpenseDetail, ExpenseType, ClientKind, Receivable, Card, Category, Company, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
+import type { Account, Activity, CashMovement, CashRegister, Order, PosItem, PosPayment, PosSale, ProLaboreWithdrawal, OrderItem, OrderStatus, ActivityStatus, BusinessClient, ExpenseDetail, ExpenseType, ClientKind, Receivable, Card, Category, Company, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
 import type { MoveInput } from "../stock";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import { Outbox, browserStore, isNetworkFailure, type Op, type RunResult, type SyncStatus } from "./outbox";
@@ -648,6 +648,30 @@ export class SupabaseRepo implements Repo {
   async deleteOrder(id: string) {
     if (!online()) throw new Error(OFFLINE_MSG);
     must(await this.db.from("orders").delete().eq("id", id));
+  }
+
+  async listSales() {
+    if (!this.data) throw new Error("não autenticado");
+    const rows = must(await this.db.from("pos_sales").select("*").eq("workspace_id", this.data.workspace.id).order("number")) as Row[];
+    return rows.map((r): PosSale => ({
+      id: r.id as string, number: Number(r.number), soldOn: r.sold_on as string, items: (r.items as PosItem[] | null) ?? [],
+      discountCents: Number(r.discount_cents), totalCents: Number(r.total_cents), paymentMethod: r.payment_method as PosPayment,
+      receivedCents: r.received_cents == null ? null : Number(r.received_cents), clientId: (r.client_id as string | null) ?? null,
+      clientName: (r.client_name as string) ?? "", accountId: (r.account_id as string | null) ?? null, transactionId: (r.transaction_id as string | null) ?? null,
+      status: r.status as PosSale["status"], createdAt: r.created_at as string,
+    }));
+  }
+
+  async saveSale(v: PosSale) {
+    if (!this.data) throw new Error("não autenticado");
+    if (!online()) throw new Error(OFFLINE_MSG);
+    const { error } = await this.db.from("pos_sales").upsert({
+      id: v.id, workspace_id: this.data.workspace.id, number: v.number, sold_on: v.soldOn, items: v.items, discount_cents: v.discountCents,
+      total_cents: v.totalCents, payment_method: v.paymentMethod, received_cents: v.receivedCents, client_id: v.clientId, client_name: v.clientName,
+      account_id: v.accountId, transaction_id: v.transactionId, status: v.status, created_at: v.createdAt,
+    });
+    if (error?.code === "23505") throw new Error("Esse número de venda já existe. Tente de novo.");
+    if (error) throw new Error(error.message);
   }
 
   async listCashRegisters() {

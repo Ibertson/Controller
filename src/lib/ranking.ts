@@ -1,5 +1,5 @@
 import { itemTotal, orderTotals } from "./orders";
-import type { Order, Product } from "./types";
+import type { Order, PosSale, Product } from "./types";
 
 export type RangeKey = "7" | "30" | "90" | "ano";
 export const RANGES: { key: RangeKey; label: string; title: string }[] = [
@@ -44,10 +44,15 @@ export interface Ranking { items: ProductRank[]; revenueCents: number; profitCen
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
 /**
- * Vendas de produtos nos pedidos do período (cancelados não contam).
- * O desconto do pedido é repartido entre os itens na proporção do valor; o custo é o custo atual do produto.
+ * Vendas de produtos nos pedidos e no Ponto de Venda do período (cancelados não contam).
+ * O desconto é repartido entre os itens na proporção do valor; o custo é o custo atual do produto.
  */
-export function productRanking(orders: Order[], products: Product[], from: string, to: string): Ranking {
+export function productRanking(orderList: Order[], products: Product[], from: string, to: string, sales: PosSale[] = []): Ranking {
+  const orders: Order[] = [...orderList, ...sales.map((v): Order => ({
+    id: v.id, number: v.number, clientId: v.clientId, clientName: v.clientName, orderedOn: v.soldOn, deliveryOn: null, notes: "",
+    items: v.items.map((i, n) => ({ id: `${v.id}-${n}`, productId: i.productId, serviceId: null, name: i.name, description: "", qty: i.qty, unitCents: i.unitCents })),
+    discountCents: v.discountCents, status: v.status === "cancelada" ? "cancelado" : "entregue", createdAt: v.createdAt,
+  }))];
   const byId = new Map(products.map((p) => [p.id, p]));
   const acc = new Map<string, Omit<ProductRank, "profitCents" | "margin" | "share">>();
   let orderCount = 0;

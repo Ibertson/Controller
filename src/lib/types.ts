@@ -356,6 +356,23 @@ export interface Order {
   status: OrderStatus; createdAt: string;
 }
 
+/** Venda no Ponto de Venda (balcão): itens, pagamento e a receita lançada. */
+export type PosPayment = "pix" | "dinheiro" | "debito" | "credito";
+export interface PosItem { productId: string; name: string; qty: number; unitCents: number; }
+export interface PosSale {
+  id: ID;
+  /** Número sequencial da empresa (VEN-0001). */
+  number: number;
+  soldOn: string; items: PosItem[]; discountCents: number; totalCents: number;
+  paymentMethod: PosPayment;
+  /** Dinheiro entregue pelo cliente (só em dinheiro); o troco é a diferença. */
+  receivedCents: number | null;
+  clientId: string | null; clientName: string; accountId: string | null;
+  /** Receita lançada pela venda. */
+  transactionId: string | null;
+  status: "concluida" | "cancelada"; createdAt: string;
+}
+
 /** Retirada de pró-labore: sai como despesa da conta da empresa e, se quiser, entra como receita numa conta pessoal. */
 export interface ProLaboreWithdrawal {
   id: ID;
