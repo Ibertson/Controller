@@ -1,7 +1,7 @@
 "use client";
 
 import { buildTransactions } from "../transactions";
-import type { Activity, CashRegister, Order, BusinessClient, ExpenseDetail, Receivable, Company, GoalContribution, Product, Quote, Service, StockMovement, Profile, Snapshot, WorkspaceKind } from "../types";
+import type { Activity, CashRegister, Order, ProLaboreWithdrawal, BusinessClient, ExpenseDetail, Receivable, Company, GoalContribution, Product, Quote, Service, StockMovement, Profile, Snapshot, WorkspaceKind } from "../types";
 import { applyMovement, type MoveInput } from "../stock";
 import { today } from "../dates";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
@@ -34,6 +34,7 @@ const MOVES_KEY = "sobra:stock";
 const ACTIVITIES_KEY = "sobra:activities";
 const CASH_KEY = "sobra:caixa";
 const ORDERS_KEY = "sobra:orders";
+const PROLABORE_KEY = "sobra:prolabore";
 const CLIENTS_KEY = "sobra:clients";
 const EXPENSES_KEY = "sobra:expenses";
 const RECEIVABLES_KEY = "sobra:receivables";
@@ -190,6 +191,37 @@ export class LocalRepo implements Repo {
     });
   }
   async receiptUrl(path: string) { return path; }
+  async listProLabore() { return this.wsList<ProLaboreWithdrawal>(PROLABORE_KEY); }
+  async saveProLabore(w: ProLaboreWithdrawal) {
+    const list = await this.listProLabore();
+    this.putWsList(PROLABORE_KEY, list.some((x) => x.id === w.id) ? list.map((x) => (x.id === w.id ? w : x)) : [...list, w]);
+  }
+  async deleteProLabore(id: string) { this.putWsList(PROLABORE_KEY, (await this.listProLabore()).filter((x) => x.id !== id)); }
+  private personalSpace(): Snapshot | null {
+    const cur = this.data();
+    if (kindOf(cur) === "personal") return cur;
+    return Object.values(this.state.spaces ?? {}).find((s) => kindOf(s) === "personal") ?? null;
+  }
+  private putSpace(s: Snapshot) {
+    if (s.workspace.id === this.data().workspace.id) { this.commit({ ...this.state, data: s }); return; }
+    this.commit({ ...this.state, spaces: { ...(this.state.spaces ?? {}), [s.workspace.id]: s } });
+  }
+  async personalAccounts() {
+    return (this.personalSpace()?.accounts ?? []).filter((a) => !a.archived).map((a) => ({ id: a.id, name: a.name }));
+  }
+  async creditPersonal(input: { accountId: string; amountCents: number; occurredOn: string; description: string }) {
+    const p = this.personalSpace();
+    if (!p || !p.accounts.some((a) => a.id === input.accountId)) throw new Error("Conta pessoal não encontrada.");
+    const cat = p.categories.find((c) => !c.archived && c.kind !== "expense" && /pr[oó]-?labore|sal[aá]rio/i.test(c.name));
+    const rows = buildTransactions({ kind: "income", amountCents: input.amountCents, occurredOn: input.occurredOn, description: input.description, accountId: input.accountId, categoryId: cat?.id ?? null, isPaid: true },
+      { workspaceId: p.workspace.id, newId, now: new Date().toISOString() });
+    this.putSpace({ ...p, transactions: [...p.transactions, ...rows] });
+    return rows[0].id;
+  }
+  async trashPersonal(txId: string) {
+    const p = this.personalSpace();
+    if (p) this.putSpace(moveToTrash(p, [txId], new Date().toISOString()));
+  }
   async listOrders() { return this.wsList<Order>(ORDERS_KEY); }
   async saveOrder(o: Order) {
     const list = await this.listOrders();

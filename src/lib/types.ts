@@ -31,6 +31,8 @@ export interface CompanyDetails {
   serviceCategories?: string[];
   /** Tipos de serviço da janela "Novo orçamento"; ausente = o catálogo sugerido. */
   quoteCatalog?: QuoteCategory[];
+  /** Pró-Labore: percentual do faturamento sugerido para a retirada (10 a 70). */
+  proLaborePct?: number;
 }
 /** Dados da empresa (espaço empresarial). */
 export interface Company { name: string; cnpj: string | null; activity: string; companyType: CompanyType; details?: CompanyDetails }
@@ -352,4 +354,15 @@ export interface Order {
   orderedOn: string; deliveryOn: string | null;
   notes: string; items: OrderItem[]; discountCents: number;
   status: OrderStatus; createdAt: string;
+}
+
+/** Retirada de pró-labore: sai como despesa da conta da empresa e, se quiser, entra como receita numa conta pessoal. */
+export interface ProLaboreWithdrawal {
+  id: ID;
+  /** Mês de referência (YYYY-MM). */
+  month: string; amountCents: number;
+  /** Faturamento do mês quando a retirada foi registrada. */
+  revenueCents: number;
+  expenseTxId: string | null; personalTxId: string | null; personalAccountName: string;
+  createdAt: string;
 }

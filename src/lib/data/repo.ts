@@ -1,4 +1,4 @@
-import type { Account, Activity, CashRegister, Order, BusinessClient, ExpenseDetail, Receivable, Card, Category, Company, Workspace, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, Transaction } from "../types";
+import type { Account, Activity, CashRegister, Order, ProLaboreWithdrawal, BusinessClient, ExpenseDetail, Receivable, Card, Category, Company, Workspace, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, Transaction } from "../types";
 import type { MoveInput } from "../stock";
 import type { BioPage } from "../bio";
 import type { SyncStatus } from "./outbox";
@@ -95,6 +95,15 @@ export interface Repo {
   deleteReceivable(id: string): Promise<void>;
 
   /** Atividades da agenda do espaço atual (vencimento mais próximo primeiro). */
+  listProLabore(): Promise<ProLaboreWithdrawal[]>;
+  saveProLabore(w: ProLaboreWithdrawal): Promise<void>;
+  deleteProLabore(id: string): Promise<void>;
+  /** Contas do espaço pessoal (para creditar o pró-labore a partir da empresa). */
+  personalAccounts(): Promise<{ id: string; name: string }[]>;
+  /** Lança uma receita paga numa conta do espaço pessoal; devolve o id do lançamento. */
+  creditPersonal(input: { accountId: string; amountCents: number; occurredOn: string; description: string }): Promise<string>;
+  /** Manda para a lixeira um lançamento do espaço pessoal. */
+  trashPersonal(txId: string): Promise<void>;
   listOrders(): Promise<Order[]>;
   saveOrder(o: Order): Promise<void>;
   deleteOrder(id: string): Promise<void>;

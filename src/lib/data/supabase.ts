@@ -2,7 +2,7 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildTransactions } from "../transactions";
-import type { Account, Activity, CashMovement, CashRegister, Order, OrderItem, OrderStatus, ActivityStatus, BusinessClient, ExpenseDetail, ExpenseType, ClientKind, Receivable, Card, Category, Company, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
+import type { Account, Activity, CashMovement, CashRegister, Order, ProLaboreWithdrawal, OrderItem, OrderStatus, ActivityStatus, BusinessClient, ExpenseDetail, ExpenseType, ClientKind, Receivable, Card, Category, Company, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
 import type { MoveInput } from "../stock";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import { Outbox, browserStore, isNetworkFailure, type Op, type RunResult, type SyncStatus } from "./outbox";
@@ -565,6 +565,61 @@ export class SupabaseRepo implements Repo {
   async deleteReceivable(id: string) {
     if (!online()) throw new Error(OFFLINE_MSG);
     must(await this.db.from("receivables").delete().eq("id", id));
+  }
+
+  async listProLabore() {
+    if (!this.data) throw new Error("não autenticado");
+    const rows = must(await this.db.from("pro_labore").select("*").eq("workspace_id", this.data.workspace.id).order("month").order("created_at")) as Row[];
+    return rows.map((r): ProLaboreWithdrawal => ({
+      id: r.id as string, month: r.month as string, amountCents: Number(r.amount_cents), revenueCents: Number(r.revenue_cents),
+      expenseTxId: (r.expense_tx_id as string | null) ?? null, personalTxId: (r.personal_tx_id as string | null) ?? null,
+      personalAccountName: (r.personal_account_name as string) ?? "", createdAt: r.created_at as string,
+    }));
+  }
+
+  async saveProLabore(w: ProLaboreWithdrawal) {
+    if (!this.data) throw new Error("não autenticado");
+    if (!online()) throw new Error(OFFLINE_MSG);
+    must(await this.db.from("pro_labore").upsert({
+      id: w.id, workspace_id: this.data.workspace.id, month: w.month, amount_cents: w.amountCents, revenue_cents: w.revenueCents,
+      expense_tx_id: w.expenseTxId, personal_tx_id: w.personalTxId, personal_account_name: w.personalAccountName, created_at: w.createdAt,
+    }));
+  }
+
+  async deleteProLabore(id: string) {
+    if (!online()) throw new Error(OFFLINE_MSG);
+    must(await this.db.from("pro_labore").delete().eq("id", id));
+  }
+
+  private personalId() {
+    const d = this.data;
+    if (!d) throw new Error("não autenticado");
+    if ((d.workspace.kind ?? "personal") === "personal") return d.workspace.id;
+    const w = (d.workspaces ?? []).find((x) => x.kind === "personal");
+    if (!w) throw new Error("Espaço pessoal não encontrado.");
+    return w.id;
+  }
+
+  async personalAccounts() {
+    const rows = must(await this.db.from("accounts").select("id, name, archived").eq("workspace_id", this.personalId()).order("name")) as Row[];
+    return rows.filter((r) => !r.archived).map((r) => ({ id: r.id as string, name: r.name as string }));
+  }
+
+  async creditPersonal(input: { accountId: string; amountCents: number; occurredOn: string; description: string }) {
+    if (!online()) throw new Error(OFFLINE_MSG);
+    const ws = this.personalId();
+    const cats = must(await this.db.from("categories").select("id, name, kind, archived").eq("workspace_id", ws)) as Row[];
+    const cat = cats.find((c) => !c.archived && c.kind !== "expense" && /pr[oó]-?labore|sal[aá]rio/i.test(c.name as string));
+    const rows = buildTransactions({ kind: "income", amountCents: input.amountCents, occurredOn: input.occurredOn, description: input.description, accountId: input.accountId, categoryId: (cat?.id as string) ?? null, isPaid: true },
+      { workspaceId: ws, newId, now: new Date().toISOString() });
+    must(await this.db.from("transactions").insert(rows.map(fromTransaction)));
+    if (ws === this.data?.workspace.id) this.set((x) => ({ ...x, transactions: [...x.transactions, ...rows] }));
+    return rows[0].id;
+  }
+
+  async trashPersonal(txId: string) {
+    if (!online()) throw new Error(OFFLINE_MSG);
+    must(await this.db.from("transactions").update({ deleted_at: new Date().toISOString() }).eq("id", txId).eq("workspace_id", this.personalId()));
   }
 
   async listOrders() {
