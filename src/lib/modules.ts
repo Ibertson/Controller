@@ -8,8 +8,6 @@ export const MODULES: Module[] = [
   { slug: "obrigacoes-fiscais", label: "Obrigações Fiscais", description: "Calendário de guias e impostos (DAS, DARF, ISS) com vencimento e aviso antes do prazo.",
     today: { href: "/empresa/atividades", label: "Crie como atividade em Agenda / Atividades" } },
   { slug: "funcionarios", label: "Funcionários", description: "Equipe com salário, data de admissão e encargos de cada mês." },
-  { slug: "relatorios", label: "Relatórios", description: "Relatórios do período: vendas, despesas por categoria, clientes e comparação entre meses.",
-    today: { href: "/empresa/dre", label: "Veja o resultado do mês no DRE Simplificado" } },
   { slug: "gestao-de-capital", label: "Gestão de Capital", description: "Capital de giro, reservas e quanto a empresa pode retirar sem faltar caixa.",
     today: { href: "/empresa/fluxo-de-caixa", label: "Veja o saldo de cada mês no Fluxo de Caixa" } },
 ];
