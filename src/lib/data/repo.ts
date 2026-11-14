@@ -36,6 +36,8 @@ export interface Repo {
   /** Conexão e alterações feitas sem internet esperando envio. */
   syncStatus(): SyncStatus;
   dismissSyncError(): void;
+  /** Busca de novo o que mudou no servidor (outro aparelho, outro sócio). */
+  refresh(): Promise<void>;
 
   snapshot(): Snapshot | null;
   subscribe(listener: () => void): () => void;

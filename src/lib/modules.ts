@@ -11,8 +11,6 @@ export const MODULES: Module[] = [
   { slug: "ranking-produtos", label: "Ranking Produtos", description: "Os produtos e serviços que mais vendem e mais dão lucro no período." },
   { slug: "relatorios", label: "Relatórios", description: "Relatórios do período: vendas, despesas por categoria, clientes e comparação entre meses.",
     today: { href: "/empresa/dre", label: "Veja o resultado do mês no DRE Simplificado" } },
-  { slug: "metricas", label: "Métricas Tempo Real", description: "Números do dia: vendas, ticket médio e saldo em caixa, atualizados a cada lançamento.",
-    today: { href: "/", label: "Veja o resumo no Painel Empresarial" } },
   { slug: "analytics", label: "Analytics", description: "Gráficos da evolução de vendas, despesas e margem ao longo dos meses.",
     today: { href: "/empresa/fluxo-de-caixa", label: "Veja os meses no Fluxo de Caixa" } },
   { slug: "gestao-de-capital", label: "Gestão de Capital", description: "Capital de giro, reservas e quanto a empresa pode retirar sem faltar caixa.",

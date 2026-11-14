@@ -20,7 +20,7 @@ export function Empty({ children }: { children: string }) {
 interface LineSeries { label: string; color: string; values: number[]; }
 
 /** Linhas por mês. Linhas em SVG esticado; textos e pontos em HTML para não distorcer. Aceita valores negativos. */
-export function LineChart({ months, series, label }: { months: string[]; series: LineSeries[]; label: string }) {
+export function LineChart({ months, series, label, format = compactBRL }: { months: string[]; series: LineSeries[]; label: string; format?: (v: number) => string }) {
   const all = series.flatMap((s) => s.values);
   const max = Math.max(1, ...all);
   const min = Math.min(0, ...all);
@@ -33,7 +33,7 @@ export function LineChart({ months, series, label }: { months: string[]; series:
       <div aria-hidden className="grid grid-cols-[auto_1fr] gap-x-2">
         <div className="relative h-48 w-16 text-right text-[11px] leading-none text-text-muted">
           {ticks.map((v) => (
-            <span key={v} className="num absolute right-0 -translate-y-1/2" style={{ top: `${Math.min(100, Math.max(0, y(v)))}%` }}>{compactBRL(v)}</span>
+            <span key={v} className="num absolute right-0 -translate-y-1/2" style={{ top: `${Math.min(100, Math.max(0, y(v)))}%` }}>{format(v)}</span>
           ))}
         </div>
         <div className="relative h-48 border-b border-l border-border">
@@ -120,5 +120,47 @@ export function Bars({ slices, color = "var(--color-income)" }: { slices: Slice[
         </li>
       ))}
     </ul>
+  );
+}
+
+interface BarGroup { label: string; values: number[]; }
+
+/** Barras verticais agrupadas (uma cor por série); aceita valores negativos. */
+export function GroupedBars({ groups, series, label }: { groups: BarGroup[]; series: { label: string; color: string }[]; label: string }) {
+  const all = groups.flatMap((g) => g.values);
+  const max = Math.max(1, ...all);
+  const min = Math.min(0, ...all);
+  const y = (v: number) => 100 * (1 - (v - min) / (max - min));
+  const ticks = min < 0 ? [max, 0, min] : [max, max / 2, 0];
+  return (
+    <figure role="img" aria-label={label}>
+      <div aria-hidden className="grid grid-cols-[auto_1fr] gap-x-2">
+        <div className="relative h-48 w-16 text-right text-[11px] leading-none text-text-muted">
+          {ticks.map((v) => <span key={v} className="num absolute right-0 -translate-y-1/2" style={{ top: `${y(v)}%` }}>{compactBRL(v)}</span>)}
+        </div>
+        <div className="relative flex h-48 border-b border-l border-border">
+          {ticks.map((v) => <div key={v} className="absolute inset-x-0 border-t border-dashed border-border" style={{ top: `${y(v)}%` }} />)}
+          {groups.map((g) => (
+            <div key={g.label} className="relative flex flex-1 justify-center gap-1.5 px-2">
+              {g.values.map((v, i) => (
+                <div key={series[i].label} className="relative h-full w-full max-w-12">
+                  <span className="absolute inset-x-0 rounded-sm" title={`${series[i].label}: ${formatBRL(v)}`}
+                    style={{ top: `${Math.min(y(v), y(0))}%`, height: `${Math.abs(y(v) - y(0))}%`, background: series[i].color }} />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+        <span />
+        <div className="mt-1.5 flex text-[11px] text-text-muted">
+          {groups.map((g) => <span key={g.label} className="flex-1 text-center">{g.label}</span>)}
+        </div>
+      </div>
+      <figcaption className="mt-3 flex justify-center gap-4 text-xs text-text-muted">
+        {series.map((s) => (
+          <span key={s.label} className="flex items-center gap-1.5"><span className="size-2.5 rounded-pill" style={{ background: s.color }} />{s.label}</span>
+        ))}
+      </figcaption>
+    </figure>
   );
 }
