@@ -279,6 +279,8 @@ export class SupabaseRepo implements Repo {
     await this.outbox.send(op);
   }
 
+  refresh() { return this.resync(); }
+
   syncStatus(): SyncStatus {
     const next: SyncStatus = {
       online: online(), pending: this.outbox?.pending ?? 0, syncing: this.outbox?.syncing ?? false, error: this.outbox?.error ?? null,

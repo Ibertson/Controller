@@ -86,6 +86,7 @@ export class LocalRepo implements Repo {
   retry() {}
   // Tudo já fica neste aparelho: nada para sincronizar.
   syncStatus() { return SYNCED; }
+  async refresh() { /* tudo já está neste aparelho */ }
   dismissSyncError() {}
   async signOut() { this.commit({ ...this.state, session: null }); }
   async renameSelf(name: string) { this.load(); this.commit({ ...this.state, session: { name } }); }
