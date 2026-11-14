@@ -1,7 +1,7 @@
 "use client";
 
 import { buildTransactions } from "../transactions";
-import type { Activity, BusinessClient, Receivable, Company, GoalContribution, Product, Quote, Service, StockMovement, Profile, Snapshot, WorkspaceKind } from "../types";
+import type { Activity, BusinessClient, ExpenseDetail, Receivable, Company, GoalContribution, Product, Quote, Service, StockMovement, Profile, Snapshot, WorkspaceKind } from "../types";
 import { applyMovement, type MoveInput } from "../stock";
 import { today } from "../dates";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
@@ -33,6 +33,7 @@ const QUOTES_KEY = "sobra:quotes";
 const MOVES_KEY = "sobra:stock";
 const ACTIVITIES_KEY = "sobra:activities";
 const CLIENTS_KEY = "sobra:clients";
+const EXPENSES_KEY = "sobra:expenses";
 const RECEIVABLES_KEY = "sobra:receivables";
 
 export class LocalRepo implements Repo {
@@ -170,6 +171,12 @@ export class LocalRepo implements Repo {
     all[this.data().workspace.id] = list;
     try { localStorage.setItem(key, JSON.stringify(all)); }
     catch { throw new Error("Sem espaço neste aparelho."); }
+  }
+  async listExpenseDetails() { return this.wsList<ExpenseDetail>(EXPENSES_KEY); }
+  async saveExpenseDetails(items: ExpenseDetail[]) {
+    const byId = new Map((await this.listExpenseDetails()).map((d) => [d.transactionId, d]));
+    for (const d of items) byId.set(d.transactionId, d);
+    this.putWsList(EXPENSES_KEY, [...byId.values()]);
   }
   async listClients() { return this.wsList<BusinessClient>(CLIENTS_KEY); }
   async saveClient(c: BusinessClient) {

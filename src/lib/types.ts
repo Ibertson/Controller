@@ -56,6 +56,13 @@ export interface StockMovement {
   unitCostCents: number | null;
   note: string; expiresOn: string | null; occurredOn: string; createdAt: string;
 }
+export type ExpenseType = "despesa" | "compra" | "folha";
+/** Dados extras de uma despesa da empresa (o valor, a data e a conta ficam no lançamento). */
+export interface ExpenseDetail {
+  transactionId: ID; type: ExpenseType; supplier: string; employee: string;
+  /** Parcelas de boleto/conta (não cartão): mesmo grupo, número e total. */
+  groupId: string | null; installment: number | null; installments: number | null;
+}
 export type ClientKind = "eventual" | "recorrente";
 /** Cliente da empresa (aba Clientes & Recebíveis). */
 export interface BusinessClient {
