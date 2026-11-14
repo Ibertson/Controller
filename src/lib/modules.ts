@@ -4,8 +4,6 @@ export interface Module { slug: string; label: string; description: string; toda
 export const MODULES: Module[] = [
   { slug: "ponto-de-venda", label: "Ponto de Venda", description: "Registrar a venda no balcão: escolher produtos ou serviços, forma de pagamento e dar baixa no estoque.",
     today: { href: "/transacoes", label: "Lance a venda como receita em Vendas" } },
-  { slug: "caixa-diario", label: "Caixa Diário", description: "Abrir e fechar o caixa do dia, com entradas, saídas, sangrias e a conferência do dinheiro.",
-    today: { href: "/extrato", label: "Confira o dia no Extrato" } },
   { slug: "pedidos", label: "Pedidos", description: "Pedidos de clientes com situação (novo, em preparo, entregue) e o valor a receber de cada um." },
   { slug: "notas-fiscais", label: "Notas Fiscais", description: "Registro das notas emitidas e recebidas: número, cliente ou fornecedor, valor e data." },
   { slug: "obrigacoes-fiscais", label: "Obrigações Fiscais", description: "Calendário de guias e impostos (DAS, DARF, ISS) com vencimento e aviso antes do prazo.",

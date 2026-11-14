@@ -326,3 +326,13 @@ export interface Profile {
   avatar: string | null;
   whatsapp: WhatsappNumber[];
 }
+
+/** Caixa Diário: reforço entra dinheiro, sangria tira, venda em dinheiro vem do Ponto de Venda. */
+export type CashMovementKind = "reforco" | "sangria" | "venda";
+export interface CashMovement { id: ID; kind: CashMovementKind; amountCents: number; reason: string; at: string }
+export interface CashRegister {
+  id: ID; day: string; openingCents: number; movements: CashMovement[];
+  status: "open" | "closed";
+  /** Dinheiro contado no fechamento. */
+  countedCents: number | null; closedAt: string | null; notes: string; createdAt: string;
+}

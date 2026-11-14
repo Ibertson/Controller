@@ -2,7 +2,7 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildTransactions } from "../transactions";
-import type { Account, Activity, ActivityStatus, BusinessClient, ExpenseDetail, ExpenseType, ClientKind, Receivable, Card, Category, Company, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
+import type { Account, Activity, CashMovement, CashRegister, ActivityStatus, BusinessClient, ExpenseDetail, ExpenseType, ClientKind, Receivable, Card, Category, Company, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
 import type { MoveInput } from "../stock";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import { Outbox, browserStore, isNetworkFailure, type Op, type RunResult, type SyncStatus } from "./outbox";
@@ -565,6 +565,32 @@ export class SupabaseRepo implements Repo {
   async deleteReceivable(id: string) {
     if (!online()) throw new Error(OFFLINE_MSG);
     must(await this.db.from("receivables").delete().eq("id", id));
+  }
+
+  async listCashRegisters() {
+    if (!this.data) throw new Error("não autenticado");
+    const rows = must(await this.db.from("cash_registers").select("*").eq("workspace_id", this.data.workspace.id).order("day")) as Row[];
+    return rows.map((r): CashRegister => ({
+      id: r.id as string, day: r.day as string, openingCents: Number(r.opening_cents), movements: (r.movements as CashMovement[] | null) ?? [],
+      status: r.status as CashRegister["status"], countedCents: r.counted_cents == null ? null : Number(r.counted_cents),
+      closedAt: (r.closed_at as string | null) ?? null, notes: (r.notes as string) ?? "", createdAt: r.created_at as string,
+    }));
+  }
+
+  async saveCashRegister(c: CashRegister) {
+    if (!this.data) throw new Error("não autenticado");
+    if (!online()) throw new Error(OFFLINE_MSG);
+    const { error } = await this.db.from("cash_registers").upsert({
+      id: c.id, workspace_id: this.data.workspace.id, day: c.day, opening_cents: c.openingCents, movements: c.movements,
+      status: c.status, counted_cents: c.countedCents, closed_at: c.closedAt, notes: c.notes, created_at: c.createdAt,
+    });
+    if (error?.code === "23505") throw new Error("Já existe um caixa neste dia.");
+    if (error) throw new Error(error.message);
+  }
+
+  async deleteCashRegister(id: string) {
+    if (!online()) throw new Error(OFFLINE_MSG);
+    must(await this.db.from("cash_registers").delete().eq("id", id));
   }
 
   async listActivities() {
