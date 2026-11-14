@@ -1,7 +1,7 @@
 "use client";
 
 import { buildTransactions } from "../transactions";
-import type { Activity, BusinessClient, ExpenseDetail, Receivable, Company, GoalContribution, Product, Quote, Service, StockMovement, Profile, Snapshot, WorkspaceKind } from "../types";
+import type { Activity, CashRegister, BusinessClient, ExpenseDetail, Receivable, Company, GoalContribution, Product, Quote, Service, StockMovement, Profile, Snapshot, WorkspaceKind } from "../types";
 import { applyMovement, type MoveInput } from "../stock";
 import { today } from "../dates";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
@@ -32,6 +32,7 @@ const SERVICES_KEY = "sobra:services";
 const QUOTES_KEY = "sobra:quotes";
 const MOVES_KEY = "sobra:stock";
 const ACTIVITIES_KEY = "sobra:activities";
+const CASH_KEY = "sobra:caixa";
 const CLIENTS_KEY = "sobra:clients";
 const EXPENSES_KEY = "sobra:expenses";
 const RECEIVABLES_KEY = "sobra:receivables";
@@ -188,6 +189,13 @@ export class LocalRepo implements Repo {
     });
   }
   async receiptUrl(path: string) { return path; }
+  async listCashRegisters() { return this.wsList<CashRegister>(CASH_KEY); }
+  async saveCashRegister(r: CashRegister) {
+    const list = await this.listCashRegisters();
+    if (list.some((x) => x.day === r.day && x.id !== r.id)) throw new Error("Já existe um caixa neste dia.");
+    this.putWsList(CASH_KEY, list.some((x) => x.id === r.id) ? list.map((x) => (x.id === r.id ? r : x)) : [...list, r]);
+  }
+  async deleteCashRegister(id: string) { this.putWsList(CASH_KEY, (await this.listCashRegisters()).filter((x) => x.id !== id)); }
   async listClients() { return this.wsList<BusinessClient>(CLIENTS_KEY); }
   async saveClient(c: BusinessClient) {
     const list = await this.listClients();
