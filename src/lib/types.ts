@@ -336,3 +336,20 @@ export interface CashRegister {
   /** Dinheiro contado no fechamento. */
   countedCents: number | null; closedAt: string | null; notes: string; createdAt: string;
 }
+
+/** Pedidos de clientes: do novo ao entregue. */
+export type OrderStatus = "novo" | "preparo" | "pronto" | "entregue" | "cancelado";
+export interface OrderItem {
+  id: string; productId: string | null; serviceId: string | null;
+  /** Nome do produto ou serviço (ou digitado, se for avulso). */
+  name: string; description: string; qty: number; unitCents: number;
+}
+export interface Order {
+  id: ID;
+  /** Número sequencial da empresa (PED-0001). */
+  number: number;
+  clientId: string | null; clientName: string;
+  orderedOn: string; deliveryOn: string | null;
+  notes: string; items: OrderItem[]; discountCents: number;
+  status: OrderStatus; createdAt: string;
+}

@@ -85,3 +85,9 @@
   body { background: var(--color-surface); font-size: var(--text-sm); line-height: var(--text-sm--line-height); }
   button { cursor: pointer; }
 }
+
+/* Documento do pedido: na impressão só ele aparece. */
+@media print {
+  body:has([data-print-root]) > *:not([data-print-root]) { display: none !important; }
+  [data-print-root] { position: static !important; inset: auto !important; overflow: visible !important; background: white !important; padding: 0 !important; }
+}
