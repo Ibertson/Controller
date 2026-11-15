@@ -2,7 +2,7 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { buildTransactions } from "../transactions";
-import type { Account, Activity, CashMovement, CashRegister, Order, PosItem, PosPayment, PosSale, ProLaboreWithdrawal, OrderItem, OrderStatus, ActivityStatus, BusinessClient, ExpenseDetail, ExpenseType, ClientKind, Receivable, Card, Category, Company, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
+import type { Account, Activity, CapitalMove, CapitalMoveKind, CashMovement, CashRegister, Order, PosItem, PosPayment, PosSale, ProLaboreWithdrawal, OrderItem, OrderStatus, ActivityStatus, BusinessClient, ExpenseDetail, ExpenseType, ClientKind, Receivable, Card, Category, Company, WorkspaceKind, Debt, Reminder, Goal, GoalContribution, Investment, InvestmentGoal, NewTransactionInput, Person, Product, Quote, Service, StockMovement, Profile, Recurring, Snapshot, WhatsappNumber, Transaction } from "../types";
 import type { MoveInput } from "../stock";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
 import { Outbox, browserStore, isNetworkFailure, type Op, type RunResult, type SyncStatus } from "./outbox";
@@ -648,6 +648,26 @@ export class SupabaseRepo implements Repo {
   async deleteOrder(id: string) {
     if (!online()) throw new Error(OFFLINE_MSG);
     must(await this.db.from("orders").delete().eq("id", id));
+  }
+
+  async listCapitalMoves() {
+    if (!this.data) throw new Error("não autenticado");
+    const rows = must(await this.db.from("capital_moves").select("*").eq("workspace_id", this.data.workspace.id).order("moved_on").order("created_at")) as Row[];
+    return rows.map((r): CapitalMove => ({
+      id: r.id as string, categoryId: r.category_id as string, categoryName: (r.category_name as string) ?? "", kind: r.kind as CapitalMoveKind,
+      amountCents: Number(r.amount_cents), month: r.month as string, movedOn: r.moved_on as string, note: (r.note as string) ?? "", createdAt: r.created_at as string,
+    }));
+  }
+
+  async saveCapitalMoves(save: CapitalMove[], remove: string[] = []) {
+    if (!this.data) throw new Error("não autenticado");
+    if (!online()) throw new Error(OFFLINE_MSG);
+    const ws = this.data.workspace.id;
+    if (remove.length) must(await this.db.from("capital_moves").delete().in("id", remove));
+    if (save.length) must(await this.db.from("capital_moves").upsert(save.map((m) => ({
+      id: m.id, workspace_id: ws, category_id: m.categoryId, category_name: m.categoryName, kind: m.kind, amount_cents: m.amountCents,
+      month: m.month, moved_on: m.movedOn, note: m.note, created_at: m.createdAt,
+    }))));
   }
 
   async listSales() {

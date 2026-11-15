@@ -35,6 +35,8 @@ export interface CompanyDetails {
   proLaborePct?: number;
   /** Obrigações Fiscais: anexo do Simples Nacional (1 a 5). */
   simplesAnexo?: number;
+  /** Gestão de Capital: categorias de destinação do faturamento. */
+  capitalCategories?: CapitalCategory[];
 }
 /** Dados da empresa (espaço empresarial). */
 export interface Company { name: string; cnpj: string | null; activity: string; companyType: CompanyType; details?: CompanyDetails }
@@ -359,6 +361,20 @@ export interface Order {
 }
 
 /** Venda no Ponto de Venda (balcão): itens, pagamento e a receita lançada. */
+/** Gestão de Capital: uma parte do faturamento reservada para um destino (estoque, impostos, lucro...). */
+export interface CapitalCategory {
+  id: string; name: string;
+  /** Percentual do faturamento (0 a 100). */
+  pct: number;
+  icon: string; color: string; description: string; active: boolean; createdAt: string;
+}
+export type CapitalMoveKind = "distribuicao" | "uso" | "aporte";
+/** Movimento de uma categoria de capital: a distribuição do mês, um uso (saída) ou um aporte (entrada). */
+export interface CapitalMove {
+  id: ID; categoryId: string; categoryName: string; kind: CapitalMoveKind; amountCents: number;
+  /** Mês de referência (YYYY-MM). */
+  month: string; movedOn: string; note: string; createdAt: string;
+}
 export type PosPayment = "pix" | "dinheiro" | "debito" | "credito";
 export interface PosItem { productId: string; name: string; qty: number; unitCents: number; }
 export interface PosSale {
