@@ -1,7 +1,7 @@
 "use client";
 
 import { buildTransactions } from "../transactions";
-import type { Activity, CashRegister, Order, PosSale, ProLaboreWithdrawal, BusinessClient, ExpenseDetail, Receivable, Company, GoalContribution, Product, Quote, Service, StockMovement, Profile, Snapshot, WorkspaceKind } from "../types";
+import type { Activity, CapitalMove, CashRegister, Order, PosSale, ProLaboreWithdrawal, BusinessClient, ExpenseDetail, Receivable, Company, GoalContribution, Product, Quote, Service, StockMovement, Profile, Snapshot, WorkspaceKind } from "../types";
 import { applyMovement, type MoveInput } from "../stock";
 import { today } from "../dates";
 import { dropForever, freshSnapshot, moveFromTrash, moveToTrash, scopeIds, withoutGoal, type Repo, type SignInResult } from "./repo";
@@ -35,6 +35,7 @@ const ACTIVITIES_KEY = "sobra:activities";
 const CASH_KEY = "sobra:caixa";
 const ORDERS_KEY = "sobra:orders";
 const SALES_KEY = "sobra:sales";
+const CAPITAL_KEY = "sobra:capital";
 const PROLABORE_KEY = "sobra:prolabore";
 const CLIENTS_KEY = "sobra:clients";
 const EXPENSES_KEY = "sobra:expenses";
@@ -231,6 +232,11 @@ export class LocalRepo implements Repo {
     this.putWsList(ORDERS_KEY, list.some((x) => x.id === o.id) ? list.map((x) => (x.id === o.id ? o : x)) : [...list, o]);
   }
   async deleteOrder(id: string) { this.putWsList(ORDERS_KEY, (await this.listOrders()).filter((x) => x.id !== id)); }
+  async listCapitalMoves() { return this.wsList<CapitalMove>(CAPITAL_KEY); }
+  async saveCapitalMoves(save: CapitalMove[], remove: string[] = []) {
+    const drop = new Set([...remove, ...save.map((m) => m.id)]);
+    this.putWsList(CAPITAL_KEY, [...(await this.listCapitalMoves()).filter((m) => !drop.has(m.id)), ...save]);
+  }
   async listSales() { return this.wsList<PosSale>(SALES_KEY); }
   async saveSale(v: PosSale) {
     const list = await this.listSales();
