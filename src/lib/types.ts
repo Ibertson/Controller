@@ -33,6 +33,8 @@ export interface CompanyDetails {
   quoteCatalog?: QuoteCategory[];
   /** Pró-Labore: percentual do faturamento sugerido para a retirada (10 a 70). */
   proLaborePct?: number;
+  /** Obrigações Fiscais: anexo do Simples Nacional (1 a 5). */
+  simplesAnexo?: number;
 }
 /** Dados da empresa (espaço empresarial). */
 export interface Company { name: string; cnpj: string | null; activity: string; companyType: CompanyType; details?: CompanyDetails }
